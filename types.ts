@@ -27,6 +27,15 @@ export interface SelectableProgram extends Program {
   // any additional properties for selection if needed
 }
 
+export interface AbstractSubmission {
+  id: string;
+  programId: string;
+  order: number;
+  presenter: string;
+  title: string;
+  summary: string;
+}
+
 export enum Page {
   Search = '/search',
   Upload = '/upload',
