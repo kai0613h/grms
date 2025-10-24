@@ -1,0 +1,58 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:15
+    restart: always
+    env_file:
+      - .env
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    volumes:
+      - ./backend:/app:delegated # macOS では :delegated を付けるとパフォーマンスが改善する場合がある
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - NOTION_TOKEN=${NOTION_TOKEN}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    # mac の特殊対策: ホストのサービスに接続する場合は host.docker.internal を使う
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    volumes:
+      - ./frontend:/app:delegated
+      - /app/node_modules
+    ports:
+      - "3000:5173" # Vite デフォルトポートは 5173 -> ホスト 3000 にマッピング
+    env_file:
+      - .env
+    environment:
+      - VITE_API_BASE_URL=${VITE_API_BASE_URL}
+      - GEMINI_API_KEY=${GEMINI_API_KEY} # macOS でホストのバックエンドへアクセスする例
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
+    driver: local
