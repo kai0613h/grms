@@ -23,7 +23,8 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     volumes:
-      - ./backend:/app:delegated # macOS では :delegated を付けるとパフォーマンスが改善する場合がある
+      - ./backend/app:/app:delegated  # macOS では :delegated を付けるとパフォーマンスが改善する場合がある
+      - ./backend/requirements.txt:/app/requirements.txt:delegated
     env_file:
       - .env
     environment:
