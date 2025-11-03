@@ -42,4 +42,5 @@ export enum Page {
   FileDetails = '/file/:id', // Note: for routing, actual ID will replace :id
   CreateProgram = '/create-program',
   GenerateAbstracts = '/generate-abstracts',
+  GenerateContactTime = '/generate-contact-time',
 }

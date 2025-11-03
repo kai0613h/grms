@@ -7,6 +7,7 @@ import UploadPage from './pages/UploadPage';
 import FileDetailsPage from './pages/FileDetailsPage';
 import CreateProgramPage from './pages/CreateProgramPage';
 import GenerateAbstractsPage from './pages/GenerateAbstractsPage';
+import GenerateContactTimePage from './pages/GenerateContactTimePage';
 import { Page } from './types';
 
 const App: React.FC = () => {
@@ -20,6 +21,7 @@ const App: React.FC = () => {
           <Route path="/file/:fileId" element={<FileDetailsPage />} /> {/* Dynamic route */}
           <Route path={Page.CreateProgram} element={<CreateProgramPage />} />
           <Route path={Page.GenerateAbstracts} element={<GenerateAbstractsPage />} />
+          <Route path={Page.GenerateContactTime} element={<GenerateContactTimePage />} />
            {/* Add a fallback or 404 page if desired */}
           <Route path="*" element={<Navigate to={Page.Search} replace />} />
         </Routes>

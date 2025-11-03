@@ -40,6 +40,7 @@ const Navbar: React.FC = () => {
              {/* Adding explicit links for other pages for dev/demo, would be integrated differently in prod */}
             <NavLink to="/create-program" className={({ isActive }) => `px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}>プログラム作成</NavLink>
             <NavLink to="/generate-abstracts" className={({ isActive }) => `px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}>抄録集生成</NavLink>
+            <NavLink to="/generate-contact-time" className={({ isActive }) => `px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}>コンタクトタイム生成</NavLink>
           </nav>
 
           {/* User Actions */}
