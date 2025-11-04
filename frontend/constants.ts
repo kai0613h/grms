@@ -1,5 +1,5 @@
 
-import { NavItemType, FileItem, SelectableProgram } from './types';
+import { NavItemType, SelectableProgram } from './types';
 
 export const APP_TITLE = "卒業研究管理システム GRMS";
 
@@ -7,17 +7,6 @@ export const NAV_LINKS: NavItemType[] = [
   { label: "Home", path: "/search" }, // Home navigates to search as per common pattern
   { label: "検索", path: "/search" },
   { label: "アップロード", path: "/upload" },
-];
-
-// Mock data
-export const MOCK_FILES: FileItem[] = [
-  { id: "1", name: "Project Brief", tags: ["Project", "Brief", "Report"], lastUpdated: "2 weeks ago" },
-  { id: "2", name: "Sprint 1", tags: ["Sprint", "1", "Report"], lastUpdated: "2 weeks ago" },
-  { id: "3", name: "Sprint 2", tags: ["Sprint", "2", "Report"], lastUpdated: "2 weeks ago" },
-  { id: "4", name: "Sprint 3", tags: ["Sprint", "3", "Report"], lastUpdated: "2 weeks ago" },
-  { id: "5", name: "Sprint 4", tags: ["Sprint", "4", "Report"], lastUpdated: "2 weeks ago" },
-  { id: "6", name: "Sprint 5", tags: ["Sprint", "5", "Report"], lastUpdated: "2 weeks ago" },
-  { id: "prd12", name: "PRD 1.2", tags: ["Engineering", "Design", "Product", "Marketing", "Sales"], lastUpdated: "2 days ago by Sarah", uploadedOn: "January 29, 2023", uploadedBy: "Sarah" },
 ];
 
 export const MOCK_PROGRAMS: SelectableProgram[] = [

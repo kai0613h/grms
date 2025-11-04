@@ -8,10 +8,14 @@ export interface FileItem {
   id: string;
   name: string;
   tags: string[];
-  lastUpdated: string;
+  lastUpdated?: string;
   uploadedOn?: string;
+  uploadedAtIso?: string;
   uploadedBy?: string;
-  description?: string; // For PRD 1.2
+  description?: string;
+  contentType?: string;
+  fileSize?: number;
+  downloadUrl?: string;
 }
 
 export interface Program {

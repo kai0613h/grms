@@ -1,13 +1,13 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import SectionTitle from '../components/SectionTitle';
 import Input from '../components/Input';
 import Button from '../components/Button';
 import FileListItem from '../components/FileListItem';
 import Pagination from '../components/Pagination';
 import { MagnifyingGlassIcon } from '../components/icons';
-import { MOCK_FILES } from '../constants';
 import { FileItem } from '../types';
+import { fetchPapers } from '../utils/api';
 
 const ITEMS_PER_PAGE = 5;
 
@@ -18,29 +18,45 @@ const SearchPage: React.FC = () => {
   const [tagFilter, setTagFilter] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [hasSearched, setHasSearched] = useState(false);
+  const [files, setFiles] = useState<FileItem[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const filteredFiles = useMemo(() => {
-    if (!hasSearched) return []; // Only show files after a search action
+  const totalPages = Math.ceil(files.length / ITEMS_PER_PAGE);
+  const currentFiles = files.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
-    return MOCK_FILES.filter(file => {
-      const matchesSearchTerm = file.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                (file.description && file.description.toLowerCase().includes(searchTerm.toLowerCase()));
-      const matchesDate = !dateFilter || (file.uploadedOn && file.uploadedOn.includes(dateFilter)); // Simplified date match
-      const matchesCreatedBy = !createdByFilter || (file.uploadedBy && file.uploadedBy.toLowerCase().includes(createdByFilter.toLowerCase()));
-      const matchesTag = !tagFilter || file.tags.some(tag => tag.toLowerCase().includes(tagFilter.toLowerCase()));
-      return matchesSearchTerm && matchesDate && matchesCreatedBy && matchesTag;
-    });
-  }, [searchTerm, dateFilter, createdByFilter, tagFilter, hasSearched]);
-
-  const totalPages = Math.ceil(filteredFiles.length / ITEMS_PER_PAGE);
-  const currentFiles = filteredFiles.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
-  );
-
-  const handleSearch = () => {
+  const handleSearch = async () => {
     setHasSearched(true);
-    setCurrentPage(1); // Reset to first page on new search
+    setCurrentPage(1);
+    setIsLoading(true);
+    setErrorMessage(null);
+
+    try {
+      const results = await fetchPapers({
+        search: searchTerm,
+        tag: tagFilter,
+        uploadedBy: createdByFilter,
+      });
+
+      const trimmedDate = dateFilter.trim();
+      const dateFiltered = trimmedDate
+        ? results.filter((file) => {
+            if (!file.uploadedAtIso) return false;
+            return (
+              file.uploadedAtIso.startsWith(trimmedDate) ||
+              (file.uploadedOn && file.uploadedOn.includes(trimmedDate))
+            );
+          })
+        : results;
+
+      setFiles(dateFiltered);
+    } catch (error) {
+      console.error('Search failed:', error);
+      setErrorMessage(error instanceof Error ? error.message : '検索に失敗しました。');
+      setFiles([]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -97,7 +113,15 @@ const SearchPage: React.FC = () => {
           {hasSearched ? (
             <>
               <h3 className="text-xl font-semibold mb-4 text-gray-700">Files</h3>
-              {currentFiles.length > 0 ? (
+              {isLoading && (
+                <div className="text-center py-6 text-sm text-gray-500">読み込み中...</div>
+              )}
+              {errorMessage && (
+                <div className="mb-4 p-4 bg-red-50 border border-red-200 text-red-600 rounded">
+                  {errorMessage}
+                </div>
+              )}
+              {!isLoading && !errorMessage && currentFiles.length > 0 && (
                 <>
                   {currentFiles.map((file: FileItem) => (
                     <FileListItem key={file.id} file={file} />
@@ -108,7 +132,8 @@ const SearchPage: React.FC = () => {
                     onPageChange={setCurrentPage}
                   />
                 </>
-              ) : (
+              )}
+              {!isLoading && !errorMessage && currentFiles.length === 0 && (
                 <div className="text-center py-10 bg-white rounded-lg shadow">
                   <MagnifyingGlassIcon className="mx-auto h-12 w-12 text-gray-400" />
                   <h3 className="mt-2 text-sm font-medium text-gray-900">No results found</h3>

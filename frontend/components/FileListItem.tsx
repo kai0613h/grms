@@ -28,7 +28,9 @@ const FileListItem: React.FC<FileListItemProps> = ({ file }) => {
               {file.tags.length > 3 && <span className="text-xs text-gray-500">+{file.tags.length - 3} more</span>}
             </div>
           )}
-          <p className="mt-1 text-xs text-gray-500">Last updated {file.lastUpdated}</p>
+          {file.lastUpdated && (
+            <p className="mt-1 text-xs text-gray-500">Last updated {file.lastUpdated}</p>
+          )}
         </div>
       </div>
     </Link>
