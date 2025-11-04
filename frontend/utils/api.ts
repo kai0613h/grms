@@ -1,4 +1,11 @@
-import { FileItem } from '../types';
+import {
+  FileItem,
+  SubmissionThreadSummary,
+  SubmissionThreadDetail,
+  ThreadSubmission,
+  ProgramSessionDefinition,
+  ProgramRecord,
+} from '../types';
 
 const resolveBaseUrl = (): string => {
   const envValue = import.meta.env.VITE_API_BASE_URL?.trim();
@@ -94,6 +101,96 @@ const mapPaperToFileItem = (paper: PaperApiModel): FileItem => {
     downloadUrl: `${API_BASE_URL}/papers/${paper.id}/download`,
   };
 };
+
+interface ThreadApiModel {
+  id: string;
+  name: string;
+  description?: string | null;
+  submission_deadline?: string | null;
+  event_datetime?: string | null;
+  event_location?: string | null;
+  created_at: string;
+  updated_at: string;
+  submission_count: number;
+}
+
+interface ThreadDetailApiModel extends ThreadApiModel {
+  submissions: SubmissionApiModel[];
+}
+
+interface SubmissionApiModel {
+  id: string;
+  thread_id: string;
+  student_number: string;
+  student_name: string;
+  laboratory: string;
+  laboratory_id: number;
+  title: string;
+  pdf_filename: string;
+  pdf_size: number;
+  submitted_at: string;
+}
+
+interface ProgramRecordApiModel {
+  id: string;
+  thread_id?: string | null;
+  title: string;
+  description?: string | null;
+  metadata: Record<string, string | number>;
+  sessions: Array<Record<string, unknown>>;
+  presentation_order: Array<Record<string, unknown>>;
+  created_at: string;
+  updated_at: string;
+}
+
+const toIsoString = (value?: string | null): string | undefined => {
+  if (!value) return undefined;
+  const dt = toDate(value);
+  return dt ? dt.toISOString() : undefined;
+};
+
+const mapSubmission = (submission: SubmissionApiModel): ThreadSubmission => ({
+  id: submission.id,
+  threadId: submission.thread_id,
+  studentNumber: submission.student_number,
+  studentName: submission.student_name,
+  laboratory: submission.laboratory,
+  laboratoryId: submission.laboratory_id,
+  title: submission.title,
+  pdfFilename: submission.pdf_filename,
+  pdfSize: submission.pdf_size,
+  submittedAt: submission.submitted_at,
+  downloadUrl: `${API_BASE_URL}/conference/threads/${submission.thread_id}/submissions/${submission.id}/download`,
+});
+
+const mapThreadSummary = (thread: ThreadApiModel): SubmissionThreadSummary => ({
+  id: thread.id,
+  name: thread.name,
+  description: thread.description ?? undefined,
+  submissionDeadline: toIsoString(thread.submission_deadline),
+  eventDatetime: toIsoString(thread.event_datetime),
+  eventLocation: thread.event_location ?? undefined,
+  submissionCount: thread.submission_count ?? 0,
+  createdAt: thread.created_at,
+  updatedAt: thread.updated_at,
+});
+
+const mapThreadDetail = (thread: ThreadDetailApiModel): SubmissionThreadDetail => ({
+  ...mapThreadSummary(thread),
+  submissions: thread.submissions.map(mapSubmission),
+});
+
+const mapProgramRecord = (program: ProgramRecordApiModel): ProgramRecord => ({
+  id: program.id,
+  threadId: program.thread_id ?? undefined,
+  title: program.title,
+  description: program.description ?? undefined,
+  metadata: program.metadata ?? {},
+  sessions: program.sessions ?? [],
+  presentationOrder: program.presentation_order ?? [],
+  createdAt: program.created_at,
+  updatedAt: program.updated_at,
+});
 
 const extractErrorMessage = async (response: Response): Promise<string> => {
   try {
@@ -231,3 +328,140 @@ export const downloadPaper = async (
 
 export const getDownloadUrl = (paperId: string): string =>
   `${API_BASE_URL}/papers/${paperId}/download`;
+
+export const fetchSubmissionThreads = async (): Promise<SubmissionThreadSummary[]> => {
+  const response = await fetch(`${API_BASE_URL}/conference/threads`);
+  if (!response.ok) {
+    throw new Error(await extractErrorMessage(response));
+  }
+  const payload: ThreadApiModel[] = await response.json();
+  return payload.map(mapThreadSummary);
+};
+
+interface CreateThreadPayload {
+  name: string;
+  description?: string;
+  submissionDeadline?: string;
+  eventDatetime?: string;
+  eventLocation?: string;
+}
+
+export const createSubmissionThread = async (payload: CreateThreadPayload): Promise<SubmissionThreadSummary> => {
+  const response = await fetch(`${API_BASE_URL}/conference/threads`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      name: payload.name,
+      description: payload.description,
+      submission_deadline: payload.submissionDeadline,
+      event_datetime: payload.eventDatetime,
+      event_location: payload.eventLocation,
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(await extractErrorMessage(response));
+  }
+  const data: ThreadApiModel = await response.json();
+  return mapThreadSummary(data);
+};
+
+export const fetchSubmissionThreadDetail = async (threadId: string): Promise<SubmissionThreadDetail> => {
+  const response = await fetch(`${API_BASE_URL}/conference/threads/${threadId}`);
+  if (!response.ok) {
+    throw new Error(await extractErrorMessage(response));
+  }
+  const payload: ThreadDetailApiModel = await response.json();
+  return mapThreadDetail(payload);
+};
+
+interface CreateSubmissionPayload {
+  threadId: string;
+  studentNumber: string;
+  studentName: string;
+  laboratory: string;
+  title: string;
+  file: File;
+}
+
+export const submitAbstract = async (payload: CreateSubmissionPayload): Promise<ThreadSubmission> => {
+  const formData = new FormData();
+  formData.append('student_number', payload.studentNumber);
+  formData.append('student_name', payload.studentName);
+  formData.append('laboratory', payload.laboratory);
+  formData.append('title', payload.title);
+  formData.append('pdf', payload.file);
+
+  const response = await fetch(`${API_BASE_URL}/conference/threads/${payload.threadId}/submissions`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error(await extractErrorMessage(response));
+  }
+
+  const payloadJson: SubmissionApiModel = await response.json();
+  return mapSubmission(payloadJson);
+};
+
+export const getSubmissionDownloadUrl = (threadId: string, submissionId: string): string =>
+  `${API_BASE_URL}/conference/threads/${threadId}/submissions/${submissionId}/download`;
+
+interface CreateProgramPayload {
+  threadId: string;
+  courseName: string;
+  eventName: string;
+  eventTheme: string;
+  dateTime: string;
+  venue: string;
+  presentationDurationMinutes: number;
+  sessions: ProgramSessionDefinition[];
+  title?: string;
+  description?: string;
+}
+
+export const createProgram = async (payload: CreateProgramPayload): Promise<ProgramRecord> => {
+  const response = await fetch(`${API_BASE_URL}/conference/programs`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      thread_id: payload.threadId,
+      courseName: payload.courseName,
+      eventName: payload.eventName,
+      eventTheme: payload.eventTheme,
+      dateTime: payload.dateTime,
+      venue: payload.venue,
+      presentationDurationMinutes: payload.presentationDurationMinutes,
+      sessions: payload.sessions,
+      title: payload.title,
+      description: payload.description,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(await extractErrorMessage(response));
+  }
+
+  const data: ProgramRecordApiModel = await response.json();
+  return mapProgramRecord(data);
+};
+
+export const fetchPrograms = async (threadId?: string): Promise<ProgramRecord[]> => {
+  const query = threadId ? `?thread_id=${encodeURIComponent(threadId)}` : '';
+  const response = await fetch(`${API_BASE_URL}/conference/programs${query}`);
+  if (!response.ok) {
+    throw new Error(await extractErrorMessage(response));
+  }
+  const payload: ProgramRecordApiModel[] = await response.json();
+  return payload.map(mapProgramRecord);
+};
+
+export const getProgramDownloadUrl = (programId: string): string =>
+  `${API_BASE_URL}/conference/programs/${programId}/download`;
+
+export const getBookletDownloadUrl = (programId: string): string =>
+  `${API_BASE_URL}/conference/programs/${programId}/booklet`;
