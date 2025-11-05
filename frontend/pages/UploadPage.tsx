@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import SectionTitle from '../components/SectionTitle';
 import FileDropzone from '../components/FileDropzone';
 import Input from '../components/Input';
@@ -7,11 +7,17 @@ import Button from '../components/Button';
 import Tag from '../components/Tag';
 import { SUGGESTED_TAGS } from '../constants';
 import { PlusIcon } from '../components/icons';
+import { uploadPaper } from '../utils/api';
 
 const UploadPage: React.FC = () => {
   const [files, setFiles] = useState<File[]>([]);
   const [tags, setTags] = useState<string[]>([]);
   const [currentTagInput, setCurrentTagInput] = useState('');
+  const [uploadedBy, setUploadedBy] = useState('');
+  const [description, setDescription] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadMessage, setUploadMessage] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const handleFilesAccepted = useCallback((acceptedFiles: File[]) => {
     setFiles(prevFiles => [...prevFiles, ...acceptedFiles]);
@@ -34,17 +40,37 @@ const UploadPage: React.FC = () => {
     }
   };
 
-  const handleUpload = () => {
+  const handleUpload = async () => {
     if (files.length === 0) {
       alert("ファイルを選択してください。");
       return;
     }
-    // Placeholder for actual upload logic
-    console.log("Uploading files:", files);
-    console.log("With tags:", tags);
-    alert(`アップロード中: ${files.map(f => f.name).join(', ')}\nタグ: ${tags.join(', ')}`);
-    setFiles([]);
-    setTags([]);
+    setIsUploading(true);
+    setUploadError(null);
+    setUploadMessage(null);
+
+    try {
+      const uploaded = await Promise.all(
+        files.map(file =>
+          uploadPaper({
+            file,
+            tags,
+            uploadedBy,
+            description,
+          })
+        )
+      );
+      setUploadMessage(`アップロードが完了しました (${uploaded.length}件)。`);
+      setFiles([]);
+      setTags([]);
+      setUploadedBy('');
+      setDescription('');
+    } catch (error) {
+      console.error('Upload failed:', error);
+      setUploadError(error instanceof Error ? error.message : 'アップロードに失敗しました。');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   return (
@@ -82,6 +108,27 @@ const UploadPage: React.FC = () => {
           </div>
         </div>
 
+        <Input
+          label="アップロード者"
+          id="uploaded-by"
+          placeholder="氏名を入力"
+          value={uploadedBy}
+          onChange={(e) => setUploadedBy(e.target.value)}
+        />
+
+        <div>
+          <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
+            説明
+          </label>
+          <textarea
+            id="description"
+            className="w-full h-28 p-3 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
+            placeholder="論文の概要やメモを入力してください（任意）"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+        </div>
+
         <div>
             <h3 className="text-lg font-semibold text-gray-700 mb-2">Upload Files</h3>
             <FileDropzone onFilesAccepted={handleFilesAccepted} />
@@ -96,10 +143,21 @@ const UploadPage: React.FC = () => {
                 </div>
             )}
         </div>
+
+        {uploadMessage && (
+          <div className="p-4 bg-green-50 border border-green-200 text-green-700 rounded-md">
+            {uploadMessage}
+          </div>
+        )}
+        {uploadError && (
+          <div className="p-4 bg-red-50 border border-red-200 text-red-600 rounded-md">
+            {uploadError}
+          </div>
+        )}
         
         <div className="text-right">
-          <Button onClick={handleUpload} variant="primary" size="lg" disabled={files.length === 0}>
-            Upload
+          <Button onClick={handleUpload} variant="primary" size="lg" disabled={files.length === 0 || isUploading}>
+            {isUploading ? 'アップロード中...' : 'Upload'}
           </Button>
         </div>
       </div>
