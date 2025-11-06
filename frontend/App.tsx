@@ -7,6 +7,7 @@ import UploadPage from './pages/UploadPage';
 import FileDetailsPage from './pages/FileDetailsPage';
 import CreateProgramPage from './pages/CreateProgramPage';
 import GenerateAbstractsPage from './pages/GenerateAbstractsPage';
+import GenerateContactTimePage from './pages/GenerateContactTimePage';
 import SubmissionThreadsPage from './pages/SubmissionThreadsPage';
 import ThreadDetailPage from './pages/ThreadDetailPage';
 import { Page } from './types';
@@ -24,6 +25,7 @@ const App: React.FC = () => {
           <Route path="/threads/:threadId" element={<ThreadDetailPage />} />
           <Route path={Page.CreateProgram} element={<CreateProgramPage />} />
           <Route path={Page.GenerateAbstracts} element={<GenerateAbstractsPage />} />
+          <Route path={Page.GenerateContactTime} element={<GenerateContactTimePage />} />
            {/* Add a fallback or 404 page if desired */}
           <Route path="*" element={<Navigate to={Page.Search} replace />} />
         </Routes>

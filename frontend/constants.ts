@@ -10,6 +10,7 @@ export const NAV_LINKS: NavItemType[] = [
   { label: "抄録提出", path: "/threads" },
   { label: "プログラム生成", path: "/create-program" },
   { label: "抄録集", path: "/generate-abstracts" },
+  { label: "コンタクトタイム生成", path: "/generate-contact-time" },
 ];
 
 export const SUGGESTED_TAGS: string[] = ["Invoice", "Receipt", "Tax document", "Research", "Thesis", "Presentation"];

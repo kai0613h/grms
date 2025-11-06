@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, distinct
 from database import get_db_session
 # from models.notion import Laboratory, Year, Notion, Student, ContactTime
-from models.notion import Notion, ContactTime
+from models.notion import Notion
 import uuid
 
 
@@ -251,61 +251,6 @@ def get_student_and_task_page_ids(thesis_page_id: str) -> Dict[str, Optional[str
         "student_page_id": student_page_id,
         "task_page_id": task_page_id
     }
-
-# =====================================================
-# DB連携
-# =====================================================
-# # 研究室情報とその関連する年度ページを一度に取得
-# async def get_laboratory_with_theses(db: AsyncSession, laboratory_name: str):
-#     stmt = select(Laboratory).filter(Laboratory.name == laboratory_name).options(selectinload(Laboratory.thesis_pages))
-#     result = await db.execute(stmt)
-#     laboratory = result.scalar_one_or_none()
-    
-#     if laboratory:
-#         return {
-#             "laboratory_name": laboratory.name,
-#             "thesis_pages": [{
-#                 "year": thesis_page.year,
-#                 "thesis_page_id": thesis_page.thesis_page_id,
-#                 "student_page_id": thesis_page.student_page_id,
-#                 "task_page_id": thesis_page.task_page_id
-#             } for thesis_page in laboratory.thesis_pages]
-#         }
-#     return None
-
-# async def save_laboratories_to_db(labs: List[dict], db: AsyncSession):
-#     """
-#     Notionから取得した研究室情報をDBに保存
-#     """
-#     for lab in labs:
-#         # 既存の研究室がある場合は取得、なければ作成
-#         stmt = select(Laboratory).where(Laboratory.name == lab["laboratory_name"])
-#         result = await db.execute(stmt)
-#         laboratory = result.scalar_one_or_none()
-        
-#         if not laboratory:
-#             laboratory = Laboratory(name=lab["laboratory_name"])
-#             db.add(laboratory)
-#             await db.flush()  # id を取得するために flush
-
-#         for page in lab["thesis_pages"]:
-#             # すでに存在するか確認
-#             stmt2 = select(ThesisPage).where(ThesisPage.thesis_page_id == page["thesis_page_id"])
-#             result2 = await db.execute(stmt2)
-#             thesis_page = result2.scalar_one_or_none()
-
-#             if not thesis_page:
-#                 thesis_page = ThesisPage(
-#                     thesis_page_id=page["thesis_page_id"],
-#                     year=page["year"],
-#                     student_page_id=page["student_page_id"],
-#                     task_page_id=page["task_page_id"],
-#                     laboratory=laboratory
-#                 )
-#                 db.add(thesis_page)
-
-#     await db.commit()
-
 
 # =====================================================
 # APIエンドポイント
