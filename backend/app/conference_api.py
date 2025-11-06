@@ -11,7 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db_session
-from models import AbstractSubmission, ProgramRecord, SubmissionThread
+from models.paper import AbstractSubmission, ProgramRecord, SubmissionThread
 from pdf_generator import (
     Presentation,
     ScheduleData,

@@ -14,7 +14,7 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 
 from database import Base
 
-
+# 論文検索
 class Paper(Base):
     """Stored research paper metadata and binary contents."""
 

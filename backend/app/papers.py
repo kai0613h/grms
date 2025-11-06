@@ -11,7 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db_session
-from models import Paper
+from models.paper import Paper
 
 
 MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB

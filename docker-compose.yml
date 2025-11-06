@@ -24,7 +24,7 @@ services:
       dockerfile: backend/Dockerfile
     volumes:
       - ./backend/app:/app:delegated  # macOS では :delegated を付けるとパフォーマンスが改善する場合がある
-      - ./backend/requirements.txt:/app/requirements.txt:delegated
+      - ./backend/requirements.txt:/requirements.txt:delegated
     env_file:
       - .env
     environment:
@@ -49,7 +49,7 @@ services:
     env_file:
       - .env
     environment:
-      - VITE_API_BASE_URL=${VITE_API_BASE_URL}
+      - BACKEND_URL=${BACKEND_URL}
       - GEMINI_API_KEY=${GEMINI_API_KEY} # macOS でホストのバックエンドへアクセスする例
     depends_on:
       - backend

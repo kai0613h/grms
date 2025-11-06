@@ -8,7 +8,7 @@ import {
 } from '../types';
 
 const resolveBaseUrl = (): string => {
-  const envValue = import.meta.env.VITE_API_BASE_URL?.trim();
+  const envValue = import.meta.env.BACKEND_URL?.trim();
   const inferFromWindow = () => {
     if (typeof window === 'undefined') {
       return 'http://localhost:8000';
