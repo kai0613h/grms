@@ -1,8 +1,9 @@
 
 import React, { useState } from 'react';
-import SectionTitle from '../components/SectionTitle';
+import { ClockIcon, ArrowDownTrayIcon } from '../components/icons';
 import Button from '../components/Button';
 import RadioCard from '../components/RadioCard';
+import Select from '../components/Select';
 
 // Mock data for labs, people and years
 const MOCK_LABS = [
@@ -21,8 +22,8 @@ const MOCK_PEOPLE = [
 ];
 
 const MOCK_YEARS = [
-    { id: 1, year: 2023 },
-    { id: 2, year: 2024 },
+  { id: 1, year: 2023 },
+  { id: 2, year: 2024 },
 ];
 
 const GenerateContactTimePage: React.FC = () => {
@@ -45,8 +46,8 @@ const GenerateContactTimePage: React.FC = () => {
 
   const fetchContactTimes = async () => {
     const MOCK_CONTACT_TIMES = [
-        { date: '10/2', startTime: '10:00', endTime: '11:00', excluded: '0', duration: '60', content: 'React Nativeの環境構築' },
-        { date: '10/3', startTime: '13:00', endTime: '14:30', excluded: '10', duration: '80', content: 'UIデザインの確認' },
+      { date: '10/2', startTime: '10:00', endTime: '11:00', excluded: '0', duration: '60', content: 'React Nativeの環境構築' },
+      { date: '10/3', startTime: '13:00', endTime: '14:30', excluded: '10', duration: '80', content: 'UIデザインの確認' },
     ];
     return new Promise(resolve => setTimeout(() => resolve(MOCK_CONTACT_TIMES), 500));
   };
@@ -59,7 +60,7 @@ const GenerateContactTimePage: React.FC = () => {
       return '';
     }
 
-    const contactTimeLines = contactTimes.map(entry => 
+    const contactTimeLines = contactTimes.map(entry =>
       `\\addLine{${entry.date}}{${entry.startTime}}{${entry.endTime}}{${entry.excluded}}{${entry.duration}}{${entry.content}}`
     ).join('\n');
 
@@ -76,7 +77,7 @@ const GenerateContactTimePage: React.FC = () => {
 \\newcommand{\\yline}{\\line(0,1){\\ysize}}%
 \\newcount\\x
 \\newcount\\y
-\\newcommand{\\startFrame}{% 
+\\newcommand{\\startFrame}{%
  \\begin{picture}(175,260)
   \\put(0,0){\\makebox(175,260){}}
   \\put(0,30){
@@ -114,7 +115,7 @@ const GenerateContactTimePage: React.FC = () => {
   }
   \\put(155,0){\\thicklines\\framebox(20,20){}}
   \\put(140,0){教員の印}%
-  
+
   \\global\\y=210
 }
 
@@ -188,61 +189,83 @@ ${contactTimeLines}
 
   return (
     <div className="max-w-2xl mx-auto">
-      <SectionTitle>コンタクトタイム生成</SectionTitle>
-      <div className="bg-white p-6 sm:p-8 rounded-lg shadow-lg">
-        <p className="text-gray-600 mb-6">年度を選択</p>
-        <div className="mb-8">
-          <select
-            id="year-select"
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-slate-900 tracking-tight">コンタクトタイム生成</h1>
+        <p className="mt-2 text-slate-500">コンタクトタイム記録用紙（LaTeX）を生成します</p>
+      </div>
+
+      <div className="bg-white p-6 sm:p-8 rounded-2xl shadow-sm border border-slate-200 space-y-8">
+        <div>
+          <Select
+            label="年度を選択"
+            options={MOCK_YEARS.map(y => ({ value: y.id, label: `${y.year}年度` }))}
             value={selectedYearId || ''}
             onChange={(e) => handleYearSelectionChange(Number(e.target.value))}
-            className="block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-          >
-            {MOCK_YEARS.map((year) => (
-              <option key={year.id} value={year.id}>
-                {year.year}
-              </option>
-            ))}
-          </select>
+          />
         </div>
 
-        <p className="text-gray-600 mb-6">研究室を選択</p>
-        <div className="space-y-3 mb-8">
-          {MOCK_LABS.map((lab) => (
-            <RadioCard
-              key={lab.id}
-              id={`lab-${lab.id}`}
-              name="selectedLab"
-              label={lab.name}
-              value={lab.id}
-              checked={selectedLabId === lab.id}
-              onChange={handleLabSelectionChange}
-            />
-          ))}
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-3">研究室を選択</label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {MOCK_LABS.map((lab) => (
+              <RadioCard
+                key={lab.id}
+                id={`lab-${lab.id}`}
+                name="selectedLab"
+                label={lab.name}
+                value={lab.id}
+                checked={selectedLabId === lab.id}
+                onChange={handleLabSelectionChange}
+              />
+            ))}
+          </div>
         </div>
 
         {selectedLabId && selectedYearId && (
-          <>
-            <p className="text-gray-600 mb-6">人を選択</p>
-            <div className="space-y-3 mb-8">
-              {peopleInLab.map((person) => (
-                <RadioCard
-                  key={person.id}
-                  id={`person-${person.id}`}
-                  name="selectedPerson"
-                  label={person.student_name}
-                  value={person.id}
-                  checked={selectedPersonId === person.id}
-                  onChange={setSelectedPersonId}
-                />
-              ))}
+          <div className="animate-fade-in">
+            <label className="block text-sm font-medium text-slate-700 mb-3">人を選択</label>
+            <div className="space-y-3">
+              {peopleInLab.length === 0 ? (
+                <p className="text-sm text-slate-500 p-4 bg-slate-50 rounded-lg border border-slate-100">
+                  該当する学生がいません
+                </p>
+              ) : (
+                peopleInLab.map((person) => (
+                  <RadioCard
+                    key={person.id}
+                    id={`person-${person.id}`}
+                    name="selectedPerson"
+                    label={person.student_name}
+                    description={`${person.student_number} / ${person.theme}`}
+                    value={person.id}
+                    checked={selectedPersonId === person.id}
+                    onChange={setSelectedPersonId}
+                  />
+                ))
+              )}
             </div>
-          </>
+          </div>
         )}
 
-        <div className="text-right">
-          <Button onClick={handleGenerate} variant="primary" size="lg" disabled={!selectedLabId || !selectedPersonId || isGenerating}>
-            {isGenerating ? '生成中...' : 'コンタクトタイム生成'}
+        <div className="pt-4 border-t border-slate-100 flex justify-end">
+          <Button
+            onClick={handleGenerate}
+            variant="primary"
+            size="lg"
+            disabled={!selectedLabId || !selectedPersonId || isGenerating}
+            className="w-full sm:w-auto shadow-lg shadow-indigo-500/20"
+          >
+            {isGenerating ? (
+              <>
+                <ClockIcon className="h-5 w-5 mr-2 animate-spin" />
+                生成中...
+              </>
+            ) : (
+              <>
+                <ArrowDownTrayIcon className="h-5 w-5 mr-2" />
+                コンタクトタイム生成
+              </>
+            )}
           </Button>
         </div>
       </div>

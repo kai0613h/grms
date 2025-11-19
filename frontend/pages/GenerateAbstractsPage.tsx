@@ -1,7 +1,9 @@
+
 import React, { useEffect, useMemo, useState } from 'react';
-import { useLocation } from 'react-router-dom';
-import SectionTitle from '../components/SectionTitle';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { DocumentTextIcon, ArrowDownTrayIcon, ArrowPathIcon } from '../components/icons';
 import Button from '../components/Button';
+import Select from '../components/Select';
 import { SubmissionThreadSummary, ProgramRecord } from '../types';
 import {
   fetchPrograms,
@@ -20,6 +22,7 @@ const dateFormatter = new Intl.DateTimeFormat('ja-JP', {
 
 const GenerateAbstractsPage: React.FC = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const [threads, setThreads] = useState<SubmissionThreadSummary[]>([]);
   const [programs, setPrograms] = useState<ProgramRecord[]>([]);
   const [selectedThreadId, setSelectedThreadId] = useState('');
@@ -88,112 +91,124 @@ const GenerateAbstractsPage: React.FC = () => {
     });
   }, [selectedProgram]);
 
+  const threadOptions = useMemo(() => [
+    { value: '', label: 'すべてのスレッド' },
+    ...threads.map(t => ({ value: t.id, label: `${t.name}（提出 ${t.submissionCount} 件）` }))
+  ], [threads]);
+
+  const programOptions = useMemo(() => {
+    if (isLoadingPrograms) return [{ value: '', label: '読込中...', disabled: true }];
+    if (programs.length === 0) return [{ value: '', label: '該当するプログラムがありません', disabled: true }];
+    return programs.map(p => ({
+      value: p.id,
+      label: `${p.title}（${dateFormatter.format(new Date(p.createdAt))} 作成）`
+    }));
+  }, [programs, isLoadingPrograms]);
+
   return (
     <div className="max-w-5xl mx-auto">
-      <SectionTitle subtitle="作成済みプログラムを選択し、抄録集PDFをダウンロードできます。">
-        抄録集生成
-      </SectionTitle>
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-slate-900 tracking-tight">抄録集生成</h1>
+        <p className="mt-2 text-slate-500">作成済みプログラムを選択し、抄録集PDFをダウンロードできます</p>
+      </div>
 
-      {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-600 rounded-xl">
+          {error}
+        </div>
+      )}
 
-      <div className="bg-white p-6 sm:p-8 rounded-lg shadow-lg space-y-6">
-        <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">提出スレッド</label>
-            <select
-              className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-              value={selectedThreadId}
-              onChange={(event) => setSelectedThreadId(event.target.value)}
-            >
-              <option value="">すべてのスレッド</option>
-              {threads.map((thread) => (
-                <option key={thread.id} value={thread.id}>
-                  {thread.name}（提出 {thread.submissionCount} 件）
-                </option>
-              ))}
-            </select>
-          </div>
+      <div className="bg-white p-6 sm:p-8 rounded-2xl shadow-sm border border-slate-200 space-y-8">
+        <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Select
+            label="提出スレッド"
+            options={threadOptions}
+            value={selectedThreadId}
+            onChange={(e) => setSelectedThreadId(e.target.value)}
+          />
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">プログラム</label>
-            <select
-              className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-              value={selectedProgramId}
-              onChange={(event) => setSelectedProgramId(event.target.value)}
-              disabled={isLoadingPrograms}
-            >
-              {isLoadingPrograms ? (
-                <option value="">読込中...</option>
-              ) : programs.length === 0 ? (
-                <option value="">該当するプログラムがありません</option>
-              ) : (
-                programs.map((program) => (
-                  <option key={program.id} value={program.id}>
-                    {program.title}（{dateFormatter.format(new Date(program.createdAt))} 作成）
-                  </option>
-                ))
-              )}
-            </select>
-          </div>
+          <Select
+            label="プログラム"
+            options={programOptions}
+            value={selectedProgramId}
+            onChange={(e) => setSelectedProgramId(e.target.value)}
+            disabled={isLoadingPrograms}
+          />
         </section>
 
         {selectedProgram && (
-          <section className="space-y-4 bg-blue-50 border border-blue-200 rounded-lg p-5">
-            <div className="flex flex-wrap items-start justify-between gap-3">
+          <section className="bg-indigo-50 border border-indigo-100 rounded-xl p-6 animate-fade-in">
+            <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
               <div>
-                <h2 className="text-lg font-semibold text-blue-900">{selectedProgram.title}</h2>
-                <p className="text-sm text-blue-800">
-                  {selectedProgram.metadata.courseName} / {selectedProgram.metadata.eventName}
-                </p>
-                <p className="text-sm text-blue-700">
-                  {selectedProgram.metadata.dateTime} @ {selectedProgram.metadata.venue}
-                </p>
+                <h2 className="text-xl font-bold text-indigo-900 mb-2">{selectedProgram.title}</h2>
+                <div className="space-y-1 text-sm text-indigo-700">
+                  <p className="font-medium">
+                    {selectedProgram.metadata.courseName} / {selectedProgram.metadata.eventName}
+                  </p>
+                  <p>
+                    {selectedProgram.metadata.dateTime} @ {selectedProgram.metadata.venue}
+                  </p>
+                </div>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <a href={getProgramDownloadUrl(selectedProgram.id)}>
-                  <Button variant="secondary">プログラムPDF</Button>
+              <div className="flex flex-wrap gap-3">
+                <a href={getProgramDownloadUrl(selectedProgram.id)} className="no-underline">
+                  <Button variant="outline" className="bg-white hover:bg-indigo-50 border-indigo-200 text-indigo-700">
+                    <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
+                    プログラムPDF
+                  </Button>
                 </a>
-                <a href={getBookletDownloadUrl(selectedProgram.id)}>
-                  <Button variant="primary">抄録集PDF</Button>
+                <a href={getBookletDownloadUrl(selectedProgram.id)} className="no-underline">
+                  <Button variant="primary" className="shadow-lg shadow-indigo-500/20">
+                    <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
+                    抄録集PDF
+                  </Button>
                 </a>
               </div>
             </div>
-            <p className="text-xs text-blue-700">
-              プログラムPDFの後に、発表順で全ての抄録PDFを自動結合したファイルをダウンロードできます。
-            </p>
+            <div className="mt-4 pt-4 border-t border-indigo-200/50">
+              <p className="text-xs text-indigo-600 flex items-center">
+                <DocumentTextIcon className="h-4 w-4 mr-1.5" />
+                プログラムPDFの後に、発表順で全ての抄録PDFを自動結合したファイルをダウンロードできます。
+              </p>
+            </div>
           </section>
         )}
       </div>
 
       {selectedProgram && (
-        <div className="mt-8 bg-white p-6 rounded-lg shadow space-y-4">
-          <h2 className="text-lg font-semibold text-gray-800">発表順リスト</h2>
+        <div className="mt-8 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="p-6 border-b border-slate-100 bg-slate-50/50">
+            <h2 className="text-lg font-bold text-slate-800">発表順リスト</h2>
+          </div>
+
           {presentationOrder.length === 0 ? (
-            <p className="text-sm text-gray-500">発表順の情報が登録されていません。</p>
+            <div className="p-8 text-center text-slate-500">
+              発表順の情報が登録されていません。
+            </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200 text-sm">
-                <thead className="bg-gray-50">
+              <table className="min-w-full divide-y divide-slate-200">
+                <thead className="bg-slate-50">
                   <tr>
-                    <th className="px-4 py-2 text-left font-medium text-gray-700">順番</th>
-                    <th className="px-4 py-2 text-left font-medium text-gray-700">表題</th>
-                    <th className="px-4 py-2 text-left font-medium text-gray-700">学生</th>
-                    <th className="px-4 py-2 text-left font-medium text-gray-700">研究室</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">順番</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">表題</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">学生</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">研究室</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="bg-white divide-y divide-slate-200">
                   {presentationOrder.map((entry, index) => (
-                    <tr key={`${entry.submission_id}-${index}`}>
-                      <td className="px-4 py-2 text-gray-700">
+                    <tr key={`${entry.submission_id}-${index}`} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
                         {typeof entry.global_order === 'number'
                           ? entry.global_order
                           : String(entry.global_order || '')}
                       </td>
-                      <td className="px-4 py-2 text-gray-800">{entry.title as string}</td>
-                      <td className="px-4 py-2 text-gray-600">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">{entry.title as string}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
                         {entry.student_number} / {entry.student_name}
                       </td>
-                      <td className="px-4 py-2 text-gray-600">{entry.laboratory}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{entry.laboratory}</td>
                     </tr>
                   ))}
                 </tbody>

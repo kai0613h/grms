@@ -3,26 +3,40 @@ import React from 'react';
 import { XMarkIcon } from './icons';
 
 interface TagProps {
-  children: React.ReactNode;
-  onRemove?: () => void;
+  label: string;
   className?: string;
-  interactive?: boolean;
+  onRemove?: () => void;
   onClick?: () => void;
+  interactive?: boolean;
 }
 
-const Tag: React.FC<TagProps> = ({ children, onRemove, className, interactive = false, onClick }) => {
-  const baseClasses = "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium";
-  const colorClasses = interactive ? "bg-blue-100 text-blue-800 hover:bg-blue-200 cursor-pointer" : "bg-gray-100 text-gray-700";
-  
+const Tag: React.FC<TagProps> = ({
+  label,
+  className,
+  onRemove,
+  onClick,
+  interactive = false
+}) => {
+  const baseClasses = "inline-flex items-center px-3 py-1 rounded-full text-xs font-medium transition-colors duration-200";
+
+  const interactiveClasses = interactive
+    ? "cursor-pointer hover:bg-indigo-200 active:bg-indigo-300"
+    : "";
+
+  const colorClasses = "bg-indigo-100 text-indigo-800 border border-indigo-200";
+
   return (
-    <span className={`${baseClasses} ${colorClasses} ${className || ''}`} onClick={onClick}>
-      {children}
+    <span
+      className={`${baseClasses} ${colorClasses} ${interactiveClasses} ${className || ''}`}
+      onClick={onClick}
+    >
+      {label}
       {onRemove && (
         <button
           type="button"
-          className="ml-1.5 flex-shrink-0 inline-flex items-center justify-center h-4 w-4 rounded-full text-gray-500 hover:bg-gray-300 hover:text-gray-600 focus:outline-none focus:bg-gray-300 focus:text-gray-600"
+          className="ml-1.5 -mr-1 flex-shrink-0 h-4 w-4 rounded-full inline-flex items-center justify-center text-indigo-600 hover:bg-indigo-200 hover:text-indigo-800 focus:outline-none focus:bg-indigo-500 focus:text-white transition-colors"
           onClick={(e) => {
-            e.stopPropagation(); // Prevent onClick if onRemove exists
+            e.stopPropagation();
             onRemove();
           }}
         >

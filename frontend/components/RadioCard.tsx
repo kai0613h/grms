@@ -1,26 +1,26 @@
 
 import React from 'react';
 
-interface RadioCardProps {
+interface RadioCardProps<T extends string | number> {
   id: string;
-  name: string; // for radio group
+  name: string;
   label: string;
-  value: string;
+  value: T;
   checked: boolean;
-  onChange: (value: string) => void;
+  onChange: (value: T) => void;
+  description?: string;
 }
 
-const RadioCard: React.FC<RadioCardProps> = ({ id, name, label, value, checked, onChange }) => {
+const RadioCard = <T extends string | number>({ id, name, label, value, checked, onChange, description }: RadioCardProps<T>) => {
   return (
     <label
       htmlFor={id}
-      className={`flex items-center justify-between p-4 border rounded-lg cursor-pointer transition-all duration-150
-        ${checked ? 'bg-blue-50 border-blue-500 ring-2 ring-blue-500' : 'bg-white border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}
+      className={`relative flex items-start p-4 border rounded-xl cursor-pointer transition-all duration-200 group
+        ${checked
+          ? 'bg-indigo-50/50 border-indigo-500 ring-1 ring-indigo-500 shadow-sm'
+          : 'bg-white border-slate-200 hover:border-indigo-300 hover:bg-slate-50 hover:shadow-sm'}`}
     >
-      <span className={`text-sm font-medium ${checked ? 'text-blue-700' : 'text-gray-700'}`}>
-        {label}
-      </span>
-      <div className="relative flex items-center">
+      <div className="flex items-center h-5">
         <input
           id={id}
           type="radio"
@@ -28,14 +28,26 @@ const RadioCard: React.FC<RadioCardProps> = ({ id, name, label, value, checked, 
           value={value}
           checked={checked}
           onChange={() => onChange(value)}
-          className="opacity-0 absolute h-0 w-0" // Hide actual radio, style custom one
+          className="opacity-0 absolute h-0 w-0"
         />
         <div
-          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-150
-            ${checked ? 'border-blue-500 bg-blue-500' : 'border-gray-300 bg-white'}`}
+          className={`w-5 h-5 rounded-full border flex items-center justify-center transition-all duration-200
+            ${checked
+              ? 'border-indigo-500 bg-indigo-500 scale-110'
+              : 'border-slate-300 bg-white group-hover:border-indigo-400'}`}
         >
-          {checked && <div className="w-2 h-2 rounded-full bg-white"></div>}
+          {checked && <div className="w-2 h-2 rounded-full bg-white shadow-sm"></div>}
         </div>
+      </div>
+      <div className="ml-3 text-sm">
+        <span className={`font-medium block ${checked ? 'text-indigo-900' : 'text-slate-900'}`}>
+          {label}
+        </span>
+        {description && (
+          <span className={`block mt-1 ${checked ? 'text-indigo-700' : 'text-slate-500'}`}>
+            {description}
+          </span>
+        )}
       </div>
     </label>
   );

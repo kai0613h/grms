@@ -1,11 +1,10 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import SectionTitle from '../components/SectionTitle';
 import Button from '../components/Button';
 import Tag from '../components/Tag';
 import { FileItem } from '../types';
-import { DocumentTextIcon } from '../components/icons';
+import { DocumentTextIcon, ArrowLeftIcon, ArrowDownTrayIcon } from '../components/icons';
 import { downloadPaper, fetchPaperById, getDownloadUrl } from '../utils/api';
 
 const FileDetailsPage: React.FC = () => {
@@ -32,9 +31,9 @@ const FileDetailsPage: React.FC = () => {
         const enriched = fetched.downloadUrl
           ? fetched
           : {
-              ...fetched,
-              downloadUrl: getDownloadUrl(fetched.id),
-            };
+            ...fetched,
+            downloadUrl: getDownloadUrl(fetched.id),
+          };
         setFile(enriched);
       })
       .catch((error) => {
@@ -100,119 +99,172 @@ const FileDetailsPage: React.FC = () => {
   };
 
   if (loading) {
-    return <div className="text-center py-10">Loading file details...</div>;
+    return (
+      <div className="flex justify-center items-center min-h-[60vh]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+      </div>
+    );
   }
 
   if (errorMessage && !file) {
     return (
-      <div className="text-center py-10">
-        <DocumentTextIcon className="mx-auto h-12 w-12 text-gray-400" />
-        <h3 className="mt-2 text-lg font-medium text-gray-900">Unable to load file</h3>
-        <p className="mt-1 text-sm text-gray-500">{errorMessage}</p>
-        <Button onClick={() => window.history.back()} variant="outline" className="mt-4">
-          Go Back
-        </Button>
-        <Link to="/search">
-          <Button variant="primary" className="mt-4 ml-2">
-            Go to Search
+      <div className="max-w-2xl mx-auto text-center py-20 px-4">
+        <div className="bg-red-50 rounded-full p-4 inline-block mb-6">
+          <DocumentTextIcon className="h-10 w-10 text-red-400" />
+        </div>
+        <h3 className="text-xl font-bold text-slate-900 mb-2">読み込みエラー</h3>
+        <p className="text-slate-500 mb-8">{errorMessage}</p>
+        <div className="flex justify-center gap-4">
+          <Button onClick={() => window.history.back()} variant="outline">
+            戻る
           </Button>
-        </Link>
+          <Link to="/search">
+            <Button variant="primary">
+              検索ページへ
+            </Button>
+          </Link>
+        </div>
       </div>
     );
   }
 
   if (!file) {
     return (
-      <div className="text-center py-10">
-        <DocumentTextIcon className="mx-auto h-12 w-12 text-gray-400" />
-        <h3 className="mt-2 text-lg font-medium text-gray-900">File not found</h3>
-        <p className="mt-1 text-sm text-gray-500">
-          The file you are looking for does not exist or has been moved.
+      <div className="max-w-2xl mx-auto text-center py-20 px-4">
+        <div className="bg-slate-100 rounded-full p-4 inline-block mb-6">
+          <DocumentTextIcon className="h-10 w-10 text-slate-400" />
+        </div>
+        <h3 className="text-xl font-bold text-slate-900 mb-2">ファイルが見つかりません</h3>
+        <p className="text-slate-500 mb-8">
+          お探しのファイルは削除されたか、移動した可能性があります。
         </p>
-        <Button onClick={() => window.history.back()} variant="outline" className="mt-4">
-          Go Back
-        </Button>
-        <Link to="/search">
-          <Button variant="primary" className="mt-4 ml-2">
-            Go to Search
+        <div className="flex justify-center gap-4">
+          <Button onClick={() => window.history.back()} variant="outline">
+            戻る
           </Button>
-        </Link>
+          <Link to="/search">
+            <Button variant="primary">
+              検索ページへ
+            </Button>
+          </Link>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-3xl mx-auto bg-white p-6 sm:p-8 rounded-lg shadow-lg">
-      <SectionTitle subtitle={file.lastUpdated ? `Last updated ${file.lastUpdated}` : undefined}>
-        {file.name}
-      </SectionTitle>
-
-      {errorMessage && (
-        <div className="mb-4 p-4 bg-red-50 border border-red-200 text-red-600 rounded">
-          {errorMessage}
-        </div>
-      )}
-
-      <div className="mb-8">
-        <Button variant="primary" size="md" onClick={handleDownload} disabled={isDownloading}>
-          {isDownloading ? 'Downloading...' : 'Download'}
-        </Button>
+    <div className="max-w-4xl mx-auto">
+      <div className="mb-6">
+        <Link to="/search" className="inline-flex items-center text-slate-500 hover:text-indigo-600 transition-colors">
+          <ArrowLeftIcon className="h-4 w-4 mr-1" />
+          検索結果に戻る
+        </Link>
       </div>
 
-      {file.tags && file.tags.length > 0 && (
-        <div className="mb-8">
-          <h3 className="text-xl font-semibold text-gray-700 mb-3">Tags</h3>
-          <div className="flex flex-wrap gap-2">
-            {file.tags.map((tag, index) => (
-              <Tag key={index}>{tag}</Tag>
-            ))}
+      <div className="bg-white rounded-2xl shadow-xl shadow-indigo-100/50 border border-slate-200 overflow-hidden">
+        <div className="p-8 border-b border-slate-100 bg-slate-50/50">
+          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
+            <div className="flex-1">
+              <div className="flex items-center gap-3 mb-3">
+                <span className="inline-flex items-center justify-center h-8 w-8 rounded-lg bg-indigo-100 text-indigo-600">
+                  <DocumentTextIcon className="h-5 w-5" />
+                </span>
+                <span className="text-sm font-medium text-slate-500">
+                  {file.contentType || 'Document'}
+                </span>
+              </div>
+              <h1 className="text-2xl md:text-3xl font-bold text-slate-900 leading-tight mb-4">
+                {file.name}
+              </h1>
+
+              {file.tags && file.tags.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {file.tags.map((tag, index) => (
+                    <Tag key={index} label={tag} />
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex-shrink-0">
+              <Button
+                variant="primary"
+                size="lg"
+                onClick={handleDownload}
+                disabled={isDownloading}
+                className="shadow-lg shadow-indigo-500/30 w-full md:w-auto"
+              >
+                {isDownloading ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    ダウンロード中...
+                  </>
+                ) : (
+                  <>
+                    <ArrowDownTrayIcon className="h-5 w-5 mr-2" />
+                    ダウンロード
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         </div>
-      )}
 
-      {(file.uploadedOn || file.uploadedBy) && (
-         <div className="border-t border-gray-200 pt-6">
-            <dl className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
-                {file.uploadedOn && (
-                    <div className="sm:col-span-1">
-                        <dt className="text-sm font-medium text-gray-500">Uploaded on</dt>
-                        <dd className="mt-1 text-sm text-gray-900">{file.uploadedOn}</dd>
-                    </div>
-                )}
-                {file.uploadedBy && (
-                    <div className="sm:col-span-1">
-                        <dt className="text-sm font-medium text-gray-500">Uploaded by</dt>
-                        <dd className="mt-1 text-sm text-gray-900">{file.uploadedBy}</dd>
-                    </div>
-                )}
-            </dl>
-        </div>
-      )}
+        <div className="p-8">
+          {errorMessage && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-600 rounded-lg flex items-center">
+              <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              {errorMessage}
+            </div>
+          )}
 
-      {(file.description || file.contentType || file.fileSize) && (
-        <div className="border-t border-gray-200 pt-6 mt-6">
-          <dl className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
-            {file.description && (
-              <div className="sm:col-span-2">
-                <dt className="text-sm font-medium text-gray-500">Description</dt>
-                <dd className="mt-1 text-sm text-gray-900 whitespace-pre-line">{file.description}</dd>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="md:col-span-2 space-y-8">
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900 mb-3">説明</h3>
+                <div className="bg-slate-50 rounded-xl p-6 border border-slate-100 text-slate-700 leading-relaxed whitespace-pre-line">
+                  {file.description || '説明はありません。'}
+                </div>
               </div>
-            )}
-            {file.contentType && (
-              <div className="sm:col-span-1">
-                <dt className="text-sm font-medium text-gray-500">Content type</dt>
-                <dd className="mt-1 text-sm text-gray-900">{file.contentType}</dd>
+            </div>
+
+            <div className="md:col-span-1">
+              <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
+                <h3 className="font-semibold text-slate-900 border-b border-slate-100 pb-2">詳細情報</h3>
+
+                <div>
+                  <dt className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">アップロード者</dt>
+                  <dd className="text-sm text-slate-900 font-medium">{file.uploadedBy || '不明'}</dd>
+                </div>
+
+                <div>
+                  <dt className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">アップロード日</dt>
+                  <dd className="text-sm text-slate-900 font-medium">{file.uploadedOn || '不明'}</dd>
+                </div>
+
+                {file.lastUpdated && (
+                  <div>
+                    <dt className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">最終更新日</dt>
+                    <dd className="text-sm text-slate-900 font-medium">{file.lastUpdated}</dd>
+                  </div>
+                )}
+
+                {file.fileSize && (
+                  <div>
+                    <dt className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">ファイルサイズ</dt>
+                    <dd className="text-sm text-slate-900 font-medium">{formatFileSize(file.fileSize)}</dd>
+                  </div>
+                )}
               </div>
-            )}
-            {file.fileSize && (
-              <div className="sm:col-span-1">
-                <dt className="text-sm font-medium text-gray-500">File size</dt>
-                <dd className="mt-1 text-sm text-gray-900">{formatFileSize(file.fileSize)}</dd>
-              </div>
-            )}
-          </dl>
+            </div>
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 };

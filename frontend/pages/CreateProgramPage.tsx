@@ -1,8 +1,16 @@
+
 import React, { useEffect, useMemo, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import SectionTitle from '../components/SectionTitle';
-import Input from '../components/Input';
-import Button from '../components/Button';
+import { useLocation, useNavigate, Link } from 'react-router-dom';
+import {
+  PlusIcon,
+  TrashIcon,
+  ArrowPathIcon,
+  DocumentTextIcon,
+  ArrowDownTrayIcon,
+  CalendarIcon,
+  ClockIcon,
+  MapPinIcon
+} from '../components/icons';
 import {
   ProgramRecord,
   ProgramSessionDefinition,
@@ -16,6 +24,9 @@ import {
   getBookletDownloadUrl,
   getProgramDownloadUrl,
 } from '../utils/api';
+import Input from '../components/Input';
+import Button from '../components/Button';
+import Select from '../components/Select';
 
 const dateFormatter = new Intl.DateTimeFormat('ja-JP', {
   year: 'numeric',
@@ -171,7 +182,8 @@ const CreateProgramPage: React.FC = () => {
         description: threadDetail.description,
       });
       setGeneratedProgram(program);
-      alert('プログラムを生成しました。ダウンロードリンクをご確認ください。');
+      // Scroll to success message
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
       console.error(err);
       setError(err instanceof Error ? err.message : 'プログラムの生成に失敗しました。');
@@ -181,217 +193,321 @@ const CreateProgramPage: React.FC = () => {
     }
   };
 
+  const threadOptions = useMemo(() => {
+    return [
+      { value: '', label: isLoadingThreads ? '読込中...' : 'スレッドを選択してください', disabled: true },
+      ...threads.map(t => ({ value: t.id, label: `${t.name}（提出 ${t.submissionCount} 件）` }))
+    ];
+  }, [threads, isLoadingThreads]);
+
   return (
-    <div className="max-w-6xl mx-auto">
-      <SectionTitle subtitle="抄録提出スレッドからプログラムPDFを自動生成します。">
-        発表プログラム生成
-      </SectionTitle>
+    <div className="max-w-5xl mx-auto">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-slate-900 tracking-tight">発表プログラム生成</h1>
+        <p className="mt-2 text-slate-500">抄録提出スレッドからプログラムPDFを自動生成します</p>
+      </div>
 
-      {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-600 rounded-xl">
+          {error}
+        </div>
+      )}
 
-      <div className="bg-white p-6 sm:p-8 rounded-lg shadow-lg space-y-6">
-        <section className="space-y-3">
-          <h2 className="text-lg font-semibold text-gray-800">提出スレッドを選択</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">スレッド</label>
-              <select
-                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                value={selectedThreadId}
-                onChange={(event) => setSelectedThreadId(event.target.value)}
-                disabled={isLoadingThreads}
-              >
-                <option value="" disabled>
-                  {isLoadingThreads ? '読込中...' : 'スレッドを選択してください'}
-                </option>
-                {threads.map((thread) => (
-                  <option key={thread.id} value={thread.id}>
-                    {thread.name}（提出 {thread.submissionCount} 件）
-                  </option>
-                ))}
-              </select>
+      {generatedProgram && (
+        <div className="mb-8 p-6 bg-green-50 border border-green-200 rounded-2xl shadow-sm animate-fade-in">
+          <div className="flex items-start">
+            <div className="flex-shrink-0">
+              <DocumentTextIcon className="h-6 w-6 text-green-600" />
             </div>
-            <div className="flex gap-2">
-              <Button variant="secondary" onClick={() => navigate('/threads')}>
-                スレッド一覧に移動
+            <div className="ml-3 w-full">
+              <h3 className="text-lg font-medium text-green-800">プログラム生成が完了しました</h3>
+              <div className="mt-2 text-sm text-green-700">
+                <p>ダウンロードリンクからプログラムPDFと抄録集PDFを保存できます。</p>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <a
+                  href={getProgramDownloadUrl(generatedProgram.id)}
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+                >
+                  <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
+                  プログラムPDF
+                </a>
+                <a
+                  href={getBookletDownloadUrl(generatedProgram.id)}
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+                >
+                  <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
+                  抄録集PDF
+                </a>
+                <Button
+                  variant="outline"
+                  onClick={() => navigate(`/generate-abstracts?programId=${generatedProgram.id}`)}
+                >
+                  抄録集ページで確認
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-8">
+        {/* Thread Selection */}
+        <section className="bg-white p-6 sm:p-8 rounded-2xl shadow-sm border border-slate-200">
+          <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center">
+            <span className="flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 text-sm font-bold mr-3">1</span>
+            提出スレッドを選択
+          </h2>
+
+          <div className="flex flex-col md:flex-row gap-4 items-end">
+            <div className="flex-1 w-full">
+              <Select
+                label="スレッド"
+                options={threadOptions}
+                value={selectedThreadId}
+                onChange={(e) => setSelectedThreadId(e.target.value)}
+                disabled={isLoadingThreads}
+              />
+            </div>
+            <div className="flex gap-2 pb-0.5">
+              <Button variant="outline" onClick={() => navigate('/threads')}>
+                スレッド一覧
               </Button>
-              <Button variant="outline" onClick={loadThreads} disabled={isLoadingThreads}>
+              <Button variant="secondary" onClick={loadThreads} disabled={isLoadingThreads}>
+                <ArrowPathIcon className={`h-4 w-4 mr-1.5 ${isLoadingThreads ? 'animate-spin' : ''}`} />
                 {isLoadingThreads ? '更新中...' : '再読み込み'}
               </Button>
             </div>
           </div>
-          {isLoadingDetail && <p className="text-sm text-gray-500">提出情報を読み込み中...</p>}
+
+          {isLoadingDetail && (
+            <div className="mt-4 flex items-center text-sm text-slate-500">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600 mr-2"></div>
+              提出情報を読み込み中...
+            </div>
+          )}
+
           {threadDetail && (
-            <div className="bg-gray-50 border border-gray-200 rounded-md p-4 space-y-2 text-sm text-gray-700">
-              <p className="font-semibold text-gray-800">{threadDetail.name}</p>
-              {threadDetail.submissionDeadline && (
-                <p>
-                  提出期限: {dateFormatter.format(new Date(threadDetail.submissionDeadline))}{' '}
-                  {timeFormatter.format(new Date(threadDetail.submissionDeadline))}
-                </p>
-              )}
-              {submissionSummary.length > 0 && (
-                <p>
-                  研究室別提出数:{' '}
-                  {submissionSummary.map((item) => `${item.lab} ${item.count}件`).join(' / ')}
-                </p>
-              )}
+            <div className="mt-6 p-4 bg-slate-50 rounded-xl border border-slate-200">
+              <h3 className="font-bold text-slate-800 mb-2">{threadDetail.name}</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm text-slate-600">
+                {threadDetail.submissionDeadline && (
+                  <div className="flex items-center">
+                    <CalendarIcon className="h-4 w-4 mr-1.5 text-slate-400" />
+                    <span className="font-medium mr-1.5">提出期限:</span>
+                    {dateFormatter.format(new Date(threadDetail.submissionDeadline))} {timeFormatter.format(new Date(threadDetail.submissionDeadline))}
+                  </div>
+                )}
+                {submissionSummary.length > 0 && (
+                  <div className="sm:col-span-2">
+                    <span className="font-medium mr-1.5">研究室別提出数:</span>
+                    {submissionSummary.map((item) => `${item.lab} ${item.count}件`).join(' / ')}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </section>
 
-        <section className="space-y-4">
-          <h2 className="text-lg font-semibold text-gray-800">イベント情報</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Input label="コース名" name="courseName" value={eventDetails.courseName} onChange={handleEventDetailChange} />
-            <Input label="発表会名" name="eventName" value={eventDetails.eventName} onChange={handleEventDetailChange} />
-            <Input label="テーマ" name="eventTheme" value={eventDetails.eventTheme} onChange={handleEventDetailChange} />
-            <Input label="日時" name="dateTime" value={eventDetails.dateTime} onChange={handleEventDetailChange} />
-            <Input label="会場" name="venue" value={eventDetails.venue} onChange={handleEventDetailChange} />
+        {/* Event Details */}
+        <section className="bg-white p-6 sm:p-8 rounded-2xl shadow-sm border border-slate-200">
+          <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center">
+            <span className="flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 text-sm font-bold mr-3">2</span>
+            イベント情報
+          </h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Input
+              label="コース名"
+              name="courseName"
+              value={eventDetails.courseName}
+              onChange={handleEventDetailChange}
+            />
+            <Input
+              label="発表会名"
+              name="eventName"
+              value={eventDetails.eventName}
+              onChange={handleEventDetailChange}
+            />
+            <Input
+              label="テーマ"
+              name="eventTheme"
+              value={eventDetails.eventTheme}
+              onChange={handleEventDetailChange}
+            />
+            <Input
+              label="日時"
+              name="dateTime"
+              value={eventDetails.dateTime}
+              onChange={handleEventDetailChange}
+              icon={<CalendarIcon className="h-5 w-5 text-slate-400" />}
+            />
+            <Input
+              label="会場"
+              name="venue"
+              value={eventDetails.venue}
+              onChange={handleEventDetailChange}
+              icon={<MapPinIcon className="h-5 w-5 text-slate-400" />}
+            />
             <Input
               label="1人あたりの発表時間 (分)"
               type="number"
               min={5}
               value={presentationDuration}
               onChange={(event) => setPresentationDuration(Number(event.target.value))}
+              icon={<ClockIcon className="h-5 w-5 text-slate-400" />}
             />
           </div>
         </section>
 
-        <section className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-800">セッション設定</h2>
-            <div className="space-x-2">
+        {/* Session Settings */}
+        <section className="bg-white p-6 sm:p-8 rounded-2xl shadow-sm border border-slate-200">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+            <h2 className="text-xl font-bold text-slate-800 flex items-center">
+              <span className="flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 text-sm font-bold mr-3">3</span>
+              セッション設定
+            </h2>
+            <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={() => addSession('session')}>
-                発表セッションを追加
+                <PlusIcon className="h-4 w-4 mr-1.5" />
+                発表セッション
               </Button>
-              <Button variant="secondary" size="sm" onClick={() => addSession('break')}>
-                休憩を追加
+              <Button variant="outline" size="sm" onClick={() => addSession('break')}>
+                <PlusIcon className="h-4 w-4 mr-1.5" />
+                休憩
               </Button>
             </div>
           </div>
 
           <div className="space-y-4">
             {sessions.map((session, index) => (
-              <div key={index} className="border border-gray-200 rounded-md p-4 bg-gray-50">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <select
-                      className="px-2 py-1 border border-gray-300 rounded-md text-sm"
-                      value={session.type}
-                      onChange={(event) => updateSession(index, { type: event.target.value as 'session' | 'break' })}
-                    >
-                      <option value="session">発表セッション</option>
-                      <option value="break">休憩</option>
-                    </select>
-                    <span className="text-sm font-medium text-gray-700">#{index + 1}</span>
-                  </div>
+              <div key={index} className="p-5 bg-slate-50 rounded-xl border border-slate-200 relative group">
+                <div className="absolute top-4 right-4">
                   <button
-                    type="button"
                     onClick={() => removeSession(index)}
-                    className="text-sm text-red-500 hover:underline"
+                    className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                    title="削除"
                   >
-                    削除
+                    <TrashIcon className="h-5 w-5" />
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex items-center gap-3 mb-4">
+                  <span className="font-bold text-slate-400 text-sm">#{index + 1}</span>
+                  <div className="w-40">
+                    <Select
+                      options={[
+                        { value: 'session', label: '発表セッション' },
+                        { value: 'break', label: '休憩' }
+                      ]}
+                      value={session.type}
+                      onChange={(e) => updateSession(index, { type: e.target.value as 'session' | 'break' })}
+                      className="py-2 text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                   <Input
                     label="開始時刻"
                     type="time"
                     value={session.startTime}
-                    onChange={(event) => updateSession(index, { startTime: event.target.value })}
+                    onChange={(e) => updateSession(index, { startTime: e.target.value })}
+                    className="bg-white"
                   />
                   <Input
                     label="終了時刻"
                     type="time"
                     value={session.endTime}
-                    onChange={(event) => updateSession(index, { endTime: event.target.value })}
+                    onChange={(e) => updateSession(index, { endTime: e.target.value })}
+                    className="bg-white"
                   />
-                </div>
 
-                {session.type === 'session' && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                    <Input
-                      label="座長"
-                      value={session.chair ?? ''}
-                      onChange={(event) => updateSession(index, { chair: event.target.value })}
-                    />
-                    <Input
-                      label="タイムキーパー"
-                      value={session.timekeeper ?? ''}
-                      onChange={(event) => updateSession(index, { timekeeper: event.target.value })}
-                    />
-                  </div>
-                )}
+                  {session.type === 'session' && (
+                    <>
+                      <Input
+                        label="座長"
+                        value={session.chair ?? ''}
+                        onChange={(e) => updateSession(index, { chair: e.target.value })}
+                        className="bg-white"
+                        placeholder="座長名"
+                      />
+                      <Input
+                        label="タイムキーパー"
+                        value={session.timekeeper ?? ''}
+                        onChange={(e) => updateSession(index, { timekeeper: e.target.value })}
+                        className="bg-white"
+                        placeholder="TK名"
+                      />
+                    </>
+                  )}
+                </div>
               </div>
             ))}
           </div>
         </section>
 
-        <div className="text-right">
-          <Button variant="primary" size="lg" onClick={handleGenerateProgram} disabled={isGenerating}>
-            {isGenerating ? '生成中...' : 'プログラムPDFを生成'}
+        <div className="flex justify-end">
+          <Button
+            variant="primary"
+            size="lg"
+            onClick={handleGenerateProgram}
+            disabled={isGenerating}
+            className="shadow-xl shadow-indigo-500/20"
+          >
+            {isGenerating ? (
+              <>
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                生成中...
+              </>
+            ) : (
+              <>
+                <DocumentTextIcon className="h-5 w-5 mr-2" />
+                プログラムPDFを生成
+              </>
+            )}
           </Button>
         </div>
-      </div>
 
-      {generatedProgram && (
-        <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-6 space-y-3">
-          <h2 className="text-lg font-semibold text-blue-900">プログラム生成が完了しました</h2>
-          <p className="text-sm text-blue-700">
-            ダウンロードリンクからプログラムPDFと抄録集PDFを保存できます。
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <a href={getProgramDownloadUrl(generatedProgram.id)}>
-              <Button variant="secondary">プログラムPDFをダウンロード</Button>
-            </a>
-            <a href={getBookletDownloadUrl(generatedProgram.id)}>
-              <Button variant="primary">抄録集PDFをダウンロード</Button>
-            </a>
-            <Button variant="ghost" onClick={() => navigate(`/generate-abstracts?programId=${generatedProgram.id}`)}>
-              抄録集ページで確認
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {threadDetail && (
-        <div className="mt-10 bg-white p-6 rounded-lg shadow space-y-4">
-          <h2 className="text-lg font-semibold text-gray-800">提出済み抄録一覧</h2>
-          {threadDetail.submissions.length === 0 ? (
-            <p className="text-sm text-gray-500">このスレッドにはまだ抄録が提出されていません。</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200 text-sm">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-2 text-left font-medium text-gray-700">表題</th>
-                    <th className="px-4 py-2 text-left font-medium text-gray-700">学生</th>
-                    <th className="px-4 py-2 text-left font-medium text-gray-700">研究室</th>
-                    <th className="px-4 py-2 text-left font-medium text-gray-700">提出日時</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {threadDetail.submissions.map((submission) => (
-                    <tr key={submission.id}>
-                      <td className="px-4 py-2 text-gray-800">{submission.title}</td>
-                      <td className="px-4 py-2 text-gray-600">
-                        {submission.studentNumber} / {submission.studentName}
-                      </td>
-                      <td className="px-4 py-2 text-gray-600">{submission.laboratory}</td>
-                      <td className="px-4 py-2 text-gray-500">
-                        {dateFormatter.format(new Date(submission.submittedAt))}{' '}
-                        {timeFormatter.format(new Date(submission.submittedAt))}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        {/* Submissions List Preview */}
+        {threadDetail && (
+          <section className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mt-12">
+            <div className="p-6 border-b border-slate-100 bg-slate-50/50">
+              <h3 className="text-lg font-bold text-slate-800">提出済み抄録一覧</h3>
             </div>
-          )}
-        </div>
-      )}
+            {threadDetail.submissions.length === 0 ? (
+              <div className="p-8 text-center text-slate-500">
+                このスレッドにはまだ抄録が提出されていません。
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-slate-200">
+                  <thead className="bg-slate-50">
+                    <tr>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">表題</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">学生</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">研究室</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">提出日時</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-slate-200">
+                    {threadDetail.submissions.map((submission) => (
+                      <tr key={submission.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">{submission.title}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{submission.studentNumber} / {submission.studentName}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{submission.laboratory}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                          {dateFormatter.format(new Date(submission.submittedAt))} {timeFormatter.format(new Date(submission.submittedAt))}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        )}
+      </div>
     </div>
   );
 };

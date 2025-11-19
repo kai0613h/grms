@@ -26,7 +26,7 @@ const App: React.FC = () => {
           <Route path={Page.CreateProgram} element={<CreateProgramPage />} />
           <Route path={Page.GenerateAbstracts} element={<GenerateAbstractsPage />} />
           <Route path={Page.GenerateContactTime} element={<GenerateContactTimePage />} />
-           {/* Add a fallback or 404 page if desired */}
+          {/* Add a fallback or 404 page if desired */}
           <Route path="*" element={<Navigate to={Page.Search} replace />} />
         </Routes>
       </Layout>
