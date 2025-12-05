@@ -7,7 +7,7 @@ import FileListItem from '../components/FileListItem';
 import Pagination from '../components/Pagination';
 import { MagnifyingGlassIcon } from '../components/icons';
 import { FileItem } from '../types';
-import { fetchPapers } from '../utils/api';
+import { deletePaper, fetchPapers } from '../utils/api';
 
 const ITEMS_PER_PAGE = 5;
 
@@ -21,6 +21,7 @@ const SearchPage: React.FC = () => {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [deletingPaperId, setDeletingPaperId] = useState<string | null>(null);
 
   const totalPages = Math.ceil(files.length / ITEMS_PER_PAGE);
   const currentFiles = files.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
@@ -56,6 +57,26 @@ const SearchPage: React.FC = () => {
       setFiles([]);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleDeletePaper = async (file: FileItem) => {
+    if (deletingPaperId) {
+      return;
+    }
+    if (!window.confirm(`「${file.name}」を削除しますか？この操作は元に戻せません。`)) {
+      return;
+    }
+    setDeletingPaperId(file.id);
+    setErrorMessage(null);
+    try {
+      await deletePaper(file.id);
+      setFiles((prev) => prev.filter((item) => item.id !== file.id));
+    } catch (error) {
+      console.error('Failed to delete paper:', error);
+      setErrorMessage(error instanceof Error ? error.message : '論文の削除に失敗しました。');
+    } finally {
+      setDeletingPaperId(null);
     }
   };
 
@@ -124,7 +145,12 @@ const SearchPage: React.FC = () => {
               {!isLoading && !errorMessage && currentFiles.length > 0 && (
                 <>
                   {currentFiles.map((file: FileItem) => (
-                    <FileListItem key={file.id} file={file} />
+                    <FileListItem
+                      key={file.id}
+                      file={file}
+                      onDelete={handleDeletePaper}
+                      isDeleting={deletingPaperId === file.id}
+                    />
                   ))}
                   <Pagination
                     currentPage={currentPage}

@@ -6,6 +6,8 @@ import Button from '../components/Button';
 import { LABORATORY_OPTIONS } from '../constants';
 import { SubmissionThreadDetail, ThreadSubmission } from '../types';
 import {
+  deleteSubmissionThread,
+  deleteThreadSubmission,
   fetchSubmissionThreadDetail,
   getSubmissionDownloadUrl,
   submitAbstract,
@@ -33,6 +35,8 @@ const ThreadDetailPage: React.FC = () => {
   const [title, setTitle] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeletingThread, setIsDeletingThread] = useState(false);
+  const [deletingSubmissionId, setDeletingSubmissionId] = useState<string | null>(null);
 
   const loadDetail = async () => {
     if (!threadId) return;
@@ -108,6 +112,46 @@ const ThreadDetailPage: React.FC = () => {
     }
   };
 
+  const handleDeleteThread = async () => {
+    if (!thread || !threadId || isDeletingThread) {
+      return;
+    }
+    if (!window.confirm(`提出スレッド「${thread.name}」を削除しますか？関連する抄録とプログラムも削除されます。`)) {
+      return;
+    }
+    setIsDeletingThread(true);
+    setError(null);
+    try {
+      await deleteSubmissionThread(threadId);
+      navigate('/threads', { replace: true });
+    } catch (err) {
+      console.error(err);
+      setError(err instanceof Error ? err.message : '提出スレッドの削除に失敗しました。');
+    } finally {
+      setIsDeletingThread(false);
+    }
+  };
+
+  const handleDeleteSubmission = async (submission: ThreadSubmission) => {
+    if (!threadId || deletingSubmissionId) {
+      return;
+    }
+    if (!window.confirm(`抄録「${submission.title}」を削除しますか？`)) {
+      return;
+    }
+    setDeletingSubmissionId(submission.id);
+    setError(null);
+    try {
+      await deleteThreadSubmission(threadId, submission.id);
+      await loadDetail();
+    } catch (err) {
+      console.error(err);
+      setError(err instanceof Error ? err.message : '抄録の削除に失敗しました。');
+    } finally {
+      setDeletingSubmissionId(null);
+    }
+  };
+
   if (!threadId) {
     return <p className="text-sm text-red-600">スレッドIDが指定されていません。</p>;
   }
@@ -158,6 +202,14 @@ const ThreadDetailPage: React.FC = () => {
               </Button>
               <Button variant="outline" className="w-full" onClick={() => navigate(`/generate-abstracts?threadId=${thread.id}`)}>
                 プログラム一覧へ移動
+              </Button>
+              <Button
+                variant="danger"
+                className="w-full"
+                onClick={handleDeleteThread}
+                disabled={isDeletingThread}
+              >
+                {isDeletingThread ? '削除中...' : 'スレッドを削除'}
               </Button>
               <Link to="/threads" className="block text-center text-sm text-blue-600 hover:underline">
                 スレッド一覧に戻る
@@ -246,12 +298,22 @@ const ThreadDetailPage: React.FC = () => {
                             {submission.studentNumber} / {submission.studentName} / {submission.laboratory}
                           </p>
                         </div>
-                        <a
-                          href={getSubmissionDownloadUrl(submission.threadId, submission.id)}
-                          className="text-sm text-blue-600 hover:underline"
-                        >
-                          PDFをダウンロード
-                        </a>
+                        <div className="flex items-center gap-2">
+                          <a
+                            href={getSubmissionDownloadUrl(submission.threadId, submission.id)}
+                            className="text-sm text-blue-600 hover:underline"
+                          >
+                            PDFをダウンロード
+                          </a>
+                          <Button
+                            variant="danger"
+                            size="sm"
+                            onClick={() => handleDeleteSubmission(submission)}
+                            disabled={deletingSubmissionId === submission.id}
+                          >
+                            {deletingSubmissionId === submission.id ? '削除中...' : '削除'}
+                          </Button>
+                        </div>
                       </div>
                       <div className="mt-2 text-xs text-gray-500 flex flex-wrap gap-4">
                         <span>提出日時: {detailFormatter.format(new Date(submission.submittedAt))}</span>

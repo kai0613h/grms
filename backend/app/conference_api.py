@@ -7,7 +7,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel, Field, validator
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db_session
@@ -322,6 +322,42 @@ async def download_submission(
     return Response(content=submission.pdf_data, media_type=submission.pdf_content_type, headers=headers)
 
 
+@conference_router.delete("/threads/{thread_id}", status_code=204)
+async def delete_thread(
+    thread_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+) -> Response:
+    result = await session.execute(select(SubmissionThread).where(SubmissionThread.id == thread_id))
+    thread = result.scalars().first()
+    if not thread:
+        raise HTTPException(status_code=404, detail="指定された提出スレッドが見つかりません。")
+
+    await session.execute(delete(ProgramRecord).where(ProgramRecord.thread_id == thread_id))
+    await session.delete(thread)
+    await session.commit()
+    return Response(status_code=204)
+
+
+@conference_router.delete("/threads/{thread_id}/submissions/{submission_id}", status_code=204)
+async def delete_submission(
+    thread_id: UUID,
+    submission_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+) -> Response:
+    stmt = select(AbstractSubmission).where(
+        AbstractSubmission.thread_id == thread_id,
+        AbstractSubmission.id == submission_id,
+    )
+    result = await session.execute(stmt)
+    submission = result.scalars().first()
+    if not submission:
+        raise HTTPException(status_code=404, detail="指定された抄録が見つかりません。")
+
+    await session.delete(submission)
+    await session.commit()
+    return Response(status_code=204)
+
+
 def _to_minutes(time_str: str) -> int:
     try:
         hours, minutes = map(int, time_str.split(":"))
@@ -626,3 +662,18 @@ async def download_program_with_abstracts(
         "Content-Disposition": _quote_filename(f"{program.title}-booklet.pdf"),
     }
     return Response(content=combined_bytes, media_type="application/pdf", headers=headers)
+
+
+@conference_router.delete("/programs/{program_id}", status_code=204)
+async def delete_program(
+    program_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+) -> Response:
+    result = await session.execute(select(ProgramRecord).where(ProgramRecord.id == program_id))
+    program = result.scalars().first()
+    if not program:
+        raise HTTPException(status_code=404, detail="指定されたプログラムが見つかりません。")
+
+    await session.delete(program)
+    await session.commit()
+    return Response(status_code=204)

@@ -4,6 +4,7 @@ import SectionTitle from '../components/SectionTitle';
 import Button from '../components/Button';
 import { SubmissionThreadSummary, ProgramRecord } from '../types';
 import {
+  deleteProgram,
   fetchPrograms,
   fetchSubmissionThreads,
   getBookletDownloadUrl,
@@ -25,6 +26,7 @@ const GenerateAbstractsPage: React.FC = () => {
   const [selectedThreadId, setSelectedThreadId] = useState('');
   const [selectedProgramId, setSelectedProgramId] = useState('');
   const [isLoadingPrograms, setIsLoadingPrograms] = useState(false);
+  const [isDeletingProgram, setIsDeletingProgram] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -55,7 +57,13 @@ const GenerateAbstractsPage: React.FC = () => {
     try {
       const data = await fetchPrograms(threadId);
       setPrograms(data);
-      if (data.length > 0 && !selectedProgramId) {
+      if (data.length === 0) {
+        setSelectedProgramId('');
+        return;
+      }
+
+      const hasSelectedProgram = data.some((program) => program.id === selectedProgramId);
+      if (!hasSelectedProgram) {
         setSelectedProgramId(data[0].id);
       }
     } catch (err) {
@@ -79,6 +87,11 @@ const GenerateAbstractsPage: React.FC = () => {
     [programs, selectedProgramId],
   );
 
+  const selectedThread = useMemo(
+    () => threads.find((thread) => thread.id === selectedThreadId) ?? null,
+    [threads, selectedThreadId],
+  );
+
   const presentationOrder = useMemo(() => {
     if (!selectedProgram) return [];
     return (selectedProgram.presentationOrder || []).slice().sort((a, b) => {
@@ -87,6 +100,27 @@ const GenerateAbstractsPage: React.FC = () => {
       return aOrder - bOrder;
     });
   }, [selectedProgram]);
+
+  const handleDeleteProgram = async () => {
+    if (!selectedProgram) {
+      return;
+    }
+    if (!window.confirm(`プログラム「${selectedProgram.title}」を削除しますか？`)) {
+      return;
+    }
+    setIsDeletingProgram(true);
+    setError(null);
+    try {
+      await deleteProgram(selectedProgram.id);
+      setSelectedProgramId('');
+      await loadPrograms(selectedThreadId || undefined);
+    } catch (err) {
+      console.error(err);
+      setError(err instanceof Error ? err.message : 'プログラムの削除に失敗しました。');
+    } finally {
+      setIsDeletingProgram(false);
+    }
+  };
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -139,6 +173,41 @@ const GenerateAbstractsPage: React.FC = () => {
 
         {selectedProgram && (
           <section className="space-y-4 bg-blue-50 border border-blue-200 rounded-lg p-5">
+            <div className="space-y-3 text-sm text-blue-800">
+              {selectedThread ? (
+                <div className="space-y-1">
+                  <p className="text-base font-semibold text-blue-900">{selectedThread.name}</p>
+                  {selectedThread.description && (
+                    <p className="whitespace-pre-line">{selectedThread.description}</p>
+                  )}
+                  <dl className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-blue-700">
+                    {selectedThread.submissionDeadline && (
+                      <div>
+                        <dt className="font-semibold text-blue-800">提出期限</dt>
+                        <dd>{dateFormatter.format(new Date(selectedThread.submissionDeadline))}</dd>
+                      </div>
+                    )}
+                    {selectedThread.eventDatetime && (
+                      <div>
+                        <dt className="font-semibold text-blue-800">発表日時</dt>
+                        <dd>{dateFormatter.format(new Date(selectedThread.eventDatetime))}</dd>
+                      </div>
+                    )}
+                    {selectedThread.eventLocation && (
+                      <div>
+                        <dt className="font-semibold text-blue-800">会場</dt>
+                        <dd>{selectedThread.eventLocation}</dd>
+                      </div>
+                    )}
+                  </dl>
+                </div>
+              ) : (
+                <p>
+                  すべての提出スレッドに対して作成済みのプログラムが表示されています。
+                </p>
+              )}
+            </div>
+
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h2 className="text-lg font-semibold text-blue-900">{selectedProgram.title}</h2>
@@ -156,6 +225,13 @@ const GenerateAbstractsPage: React.FC = () => {
                 <a href={getBookletDownloadUrl(selectedProgram.id)}>
                   <Button variant="primary">抄録集PDF</Button>
                 </a>
+                <Button
+                  variant="danger"
+                  onClick={handleDeleteProgram}
+                  disabled={isDeletingProgram}
+                >
+                  {isDeletingProgram ? '削除中...' : 'プログラムを削除'}
+                </Button>
               </div>
             </div>
             <p className="text-xs text-blue-700">

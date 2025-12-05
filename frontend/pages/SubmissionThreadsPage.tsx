@@ -7,6 +7,7 @@ import Textarea from '../components/Textarea';
 import { SubmissionThreadSummary } from '../types';
 import {
   createSubmissionThread,
+  deleteSubmissionThread,
   fetchSubmissionThreads,
 } from '../utils/api';
 
@@ -24,6 +25,7 @@ const SubmissionThreadsPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [deletingThreadId, setDeletingThreadId] = useState<string | null>(null);
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -86,6 +88,27 @@ const SubmissionThreadsPage: React.FC = () => {
     () => threads.slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
     [threads],
   );
+
+  const handleDeleteThread = async (threadId: string, threadName: string) => {
+    if (deletingThreadId) {
+      return;
+    }
+    if (!window.confirm(`提出スレッド「${threadName}」を削除しますか？関連する抄録も削除されます。`)) {
+      return;
+    }
+
+    setDeletingThreadId(threadId);
+    setError(null);
+    try {
+      await deleteSubmissionThread(threadId);
+      await loadThreads();
+    } catch (err) {
+      console.error(err);
+      setError(err instanceof Error ? err.message : '提出スレッドの削除に失敗しました。');
+    } finally {
+      setDeletingThreadId(null);
+    }
+  };
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -157,35 +180,52 @@ const SubmissionThreadsPage: React.FC = () => {
                   className="border border-gray-200 rounded-md p-4 hover:border-blue-400 transition-colors cursor-pointer"
                   onClick={() => navigate(`/threads/${thread.id}`)}
                 >
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold text-gray-800">{thread.name}</h3>
-                    <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
-                      提出 {thread.submissionCount} 件
-                    </span>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-lg font-semibold text-gray-800">{thread.name}</h3>
+                        <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
+                          提出 {thread.submissionCount} 件
+                        </span>
+                      </div>
+                      {thread.description && (
+                        <p className="text-sm text-gray-600 mt-2 line-clamp-2">{thread.description}</p>
+                      )}
+                      <dl className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-500">
+                        {thread.submissionDeadline && (
+                          <div>
+                            <dt className="font-medium text-gray-600">提出期限</dt>
+                            <dd>{deadlineFormatter.format(new Date(thread.submissionDeadline))}</dd>
+                          </div>
+                        )}
+                        {thread.eventDatetime && (
+                          <div>
+                            <dt className="font-medium text-gray-600">発表日時</dt>
+                            <dd>{deadlineFormatter.format(new Date(thread.eventDatetime))}</dd>
+                          </div>
+                        )}
+                        {thread.eventLocation && (
+                          <div>
+                            <dt className="font-medium text-gray-600">会場</dt>
+                            <dd>{thread.eventLocation}</dd>
+                          </div>
+                        )}
+                      </dl>
+                    </div>
+                    <div className="flex flex-col items-end gap-2">
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleDeleteThread(thread.id, thread.name);
+                        }}
+                        disabled={deletingThreadId === thread.id}
+                      >
+                        {deletingThreadId === thread.id ? '削除中...' : '削除'}
+                      </Button>
+                    </div>
                   </div>
-                  {thread.description && (
-                    <p className="text-sm text-gray-600 mt-2 line-clamp-2">{thread.description}</p>
-                  )}
-                  <dl className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-500">
-                    {thread.submissionDeadline && (
-                      <div>
-                        <dt className="font-medium text-gray-600">提出期限</dt>
-                        <dd>{deadlineFormatter.format(new Date(thread.submissionDeadline))}</dd>
-                      </div>
-                    )}
-                    {thread.eventDatetime && (
-                      <div>
-                        <dt className="font-medium text-gray-600">発表日時</dt>
-                        <dd>{deadlineFormatter.format(new Date(thread.eventDatetime))}</dd>
-                      </div>
-                    )}
-                    {thread.eventLocation && (
-                      <div>
-                        <dt className="font-medium text-gray-600">会場</dt>
-                        <dd>{thread.eventLocation}</dd>
-                      </div>
-                    )}
-                  </dl>
                 </li>
               ))}
             </ul>

@@ -329,6 +329,15 @@ export const downloadPaper = async (
 export const getDownloadUrl = (paperId: string): string =>
   `${API_BASE_URL}/papers/${paperId}/download`;
 
+export const deletePaper = async (paperId: string): Promise<void> => {
+  const response = await fetch(`${API_BASE_URL}/papers/${paperId}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    throw new Error(await extractErrorMessage(response));
+  }
+};
+
 export const fetchSubmissionThreads = async (): Promise<SubmissionThreadSummary[]> => {
   const response = await fetch(`${API_BASE_URL}/conference/threads`);
   if (!response.ok) {
@@ -376,6 +385,15 @@ export const fetchSubmissionThreadDetail = async (threadId: string): Promise<Sub
   return mapThreadDetail(payload);
 };
 
+export const deleteSubmissionThread = async (threadId: string): Promise<void> => {
+  const response = await fetch(`${API_BASE_URL}/conference/threads/${threadId}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    throw new Error(await extractErrorMessage(response));
+  }
+};
+
 interface CreateSubmissionPayload {
   threadId: string;
   studentNumber: string;
@@ -408,6 +426,15 @@ export const submitAbstract = async (payload: CreateSubmissionPayload): Promise<
 
 export const getSubmissionDownloadUrl = (threadId: string, submissionId: string): string =>
   `${API_BASE_URL}/conference/threads/${threadId}/submissions/${submissionId}/download`;
+
+export const deleteThreadSubmission = async (threadId: string, submissionId: string): Promise<void> => {
+  const response = await fetch(`${API_BASE_URL}/conference/threads/${threadId}/submissions/${submissionId}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    throw new Error(await extractErrorMessage(response));
+  }
+};
 
 interface CreateProgramPayload {
   threadId: string;
@@ -465,3 +492,12 @@ export const getProgramDownloadUrl = (programId: string): string =>
 
 export const getBookletDownloadUrl = (programId: string): string =>
   `${API_BASE_URL}/conference/programs/${programId}/booklet`;
+
+export const deleteProgram = async (programId: string): Promise<void> => {
+  const response = await fetch(`${API_BASE_URL}/conference/programs/${programId}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    throw new Error(await extractErrorMessage(response));
+  }
+};

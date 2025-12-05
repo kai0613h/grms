@@ -1,19 +1,21 @@
 
 import React, { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useNavigate, useParams, Link } from 'react-router-dom';
 import SectionTitle from '../components/SectionTitle';
 import Button from '../components/Button';
 import Tag from '../components/Tag';
 import { FileItem } from '../types';
 import { DocumentTextIcon } from '../components/icons';
-import { downloadPaper, fetchPaperById, getDownloadUrl } from '../utils/api';
+import { deletePaper, downloadPaper, fetchPaperById, getDownloadUrl } from '../utils/api';
 
 const FileDetailsPage: React.FC = () => {
   const { fileId } = useParams<{ fileId: string }>();
+  const navigate = useNavigate();
   const [file, setFile] = useState<FileItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (!fileId) {
@@ -88,6 +90,26 @@ const FileDetailsPage: React.FC = () => {
     }
   };
 
+  const handleDelete = async () => {
+    if (!fileId || !file) return;
+    if (!window.confirm(`「${file.name}」を削除しますか？この操作は元に戻せません。`)) {
+      return;
+    }
+
+    setIsDeleting(true);
+    setErrorMessage(null);
+
+    try {
+      await deletePaper(fileId);
+      navigate('/search', { replace: true });
+    } catch (error) {
+      console.error('Delete failed:', error);
+      setErrorMessage(error instanceof Error ? error.message : 'ファイルの削除に失敗しました。');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const formatFileSize = (size?: number): string | undefined => {
     if (!size) return undefined;
     if (size < 1024) {
@@ -153,9 +175,12 @@ const FileDetailsPage: React.FC = () => {
         </div>
       )}
 
-      <div className="mb-8">
-        <Button variant="primary" size="md" onClick={handleDownload} disabled={isDownloading}>
+      <div className="mb-8 flex flex-wrap gap-3">
+        <Button variant="primary" size="md" onClick={handleDownload} disabled={isDownloading || isDeleting}>
           {isDownloading ? 'Downloading...' : 'Download'}
+        </Button>
+        <Button variant="danger" size="md" onClick={handleDelete} disabled={isDeleting || isDownloading}>
+          {isDeleting ? 'Deleting...' : 'Delete'}
         </Button>
       </div>
 
