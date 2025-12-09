@@ -11,12 +11,14 @@ import {
   DocumentTextIcon,
   ArrowDownTrayIcon,
   ArrowLeftIcon,
-  CloudArrowUpIcon
+  CloudArrowUpIcon,
+  TrashIcon
 } from '../components/icons';
 import {
   fetchSubmissionThreadDetail,
   getSubmissionDownloadUrl,
   submitAbstract,
+  deleteSubmission,
 } from '../utils/api';
 
 const detailFormatter = new Intl.DateTimeFormat('ja-JP', {
@@ -117,6 +119,21 @@ const ThreadDetailPage: React.FC = () => {
       setError(err instanceof Error ? err.message : '抄録の提出に失敗しました。');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteSubmission = async (submissionId: string) => {
+    if (!threadId) return;
+    if (!window.confirm('この提出を削除してもよろしいですか？')) {
+      return;
+    }
+
+    try {
+      await deleteSubmission(threadId, submissionId);
+      await loadDetail();
+    } catch (err) {
+      console.error(err);
+      alert('削除に失敗しました。');
     }
   };
 
@@ -342,6 +359,13 @@ const ThreadDetailPage: React.FC = () => {
                           >
                             <ArrowDownTrayIcon className="h-5 w-5" />
                           </a>
+                          <button
+                            onClick={() => handleDeleteSubmission(submission.id)}
+                            className="inline-flex items-center p-2 border border-slate-200 rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all"
+                            title="削除"
+                          >
+                            <TrashIcon className="h-5 w-5" />
+                          </button>
                         </div>
                       </div>
                     </div>

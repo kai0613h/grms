@@ -5,10 +5,11 @@ import Input from '../components/Input';
 import Button from '../components/Button';
 import Textarea from '../components/Textarea';
 import { SubmissionThreadSummary } from '../types';
-import { PlusIcon, CalendarIcon, MapPinIcon, ArrowPathIcon, ChatBubbleLeftRightIcon } from '../components/icons';
+import { PlusIcon, CalendarIcon, MapPinIcon, ArrowPathIcon, ChatBubbleLeftRightIcon, TrashIcon } from '../components/icons';
 import {
   createSubmissionThread,
   fetchSubmissionThreads,
+  deleteSubmissionThread,
 } from '../utils/api';
 
 const deadlineFormatter = new Intl.DateTimeFormat('ja-JP', {
@@ -80,6 +81,24 @@ const SubmissionThreadsPage: React.FC = () => {
       setError(err instanceof Error ? err.message : 'スレッドの作成に失敗しました。');
     } finally {
       setIsCreating(false);
+    }
+  };
+
+  const handleDeleteThread = async (e: React.MouseEvent, threadId: string) => {
+    e.stopPropagation();
+    if (!window.confirm('このスレッドを削除してもよろしいですか？\n関連する提出物も全て削除されます。')) {
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await deleteSubmissionThread(threadId);
+      await loadThreads();
+    } catch (err) {
+      console.error(err);
+      alert('スレッドの削除に失敗しました。');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -192,9 +211,18 @@ const SubmissionThreadsPage: React.FC = () => {
                       <h3 className="text-lg font-bold text-slate-800 group-hover:text-indigo-600 transition-colors">
                         {thread.name}
                       </h3>
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">
-                        提出 {thread.submissionCount} 件
-                      </span>
+                      <div className="flex items-center space-x-2">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">
+                          提出 {thread.submissionCount} 件
+                        </span>
+                        <button
+                          onClick={(e) => handleDeleteThread(e, thread.id)}
+                          className="p-1.5 text-slate-400 hover:text-red-600 transition-colors rounded-full hover:bg-red-50 z-10"
+                          title="スレッドを削除"
+                        >
+                          <TrashIcon className="h-4 w-4" />
+                        </button>
+                      </div>
                     </div>
 
                     {thread.description && (

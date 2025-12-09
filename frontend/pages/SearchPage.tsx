@@ -7,7 +7,7 @@ import FileListItem from '../components/FileListItem';
 import Pagination from '../components/Pagination';
 import { MagnifyingGlassIcon, FunnelIcon } from '../components/icons';
 import { FileItem } from '../types';
-import { fetchPapers } from '../utils/api';
+import { fetchPapers, deletePaper } from '../utils/api';
 
 const ITEMS_PER_PAGE = 5;
 
@@ -54,6 +54,29 @@ const SearchPage: React.FC = () => {
       console.error('Search failed:', error);
       setErrorMessage(error instanceof Error ? error.message : '検索に失敗しました。');
       setFiles([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteFile = async (fileId: string) => {
+    if (!window.confirm('この論文ファイルを削除してもよろしいですか？')) {
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await deletePaper(fileId);
+      // Re-fetch only if already searched, or manually update state
+      if (hasSearched) {
+        // Re-execute search logic without resetting page if possible,
+        // but calling handleSearch resets page.
+        // Let's just remove it from the state to avoid layout shift/reloading
+        setFiles(prev => prev.filter(f => f.id !== fileId));
+      }
+    } catch (err) {
+      console.error('Delete failed:', err);
+      setErrorMessage('ファイルの削除に失敗しました。');
     } finally {
       setIsLoading(false);
     }
@@ -161,7 +184,7 @@ const SearchPage: React.FC = () => {
               {!isLoading && !errorMessage && currentFiles.length > 0 && (
                 <div className="space-y-4">
                   {currentFiles.map((file: FileItem) => (
-                    <FileListItem key={file.id} file={file} />
+                    <FileListItem key={file.id} file={file} onDelete={handleDeleteFile} />
                   ))}
                   <div className="pt-6">
                     <Pagination

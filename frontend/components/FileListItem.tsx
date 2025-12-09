@@ -1,14 +1,23 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { FileItem } from '../types';
-import { DocumentIcon, CalendarIcon, UserIcon, TagIcon } from './icons';
+import { DocumentIcon, CalendarIcon, UserIcon, TagIcon, TrashIcon } from './icons';
 import Tag from './Tag';
 
 interface FileListItemProps {
   file: FileItem;
+  onDelete?: (id: string) => void;
 }
 
-const FileListItem: React.FC<FileListItemProps> = ({ file }) => {
+const FileListItem: React.FC<FileListItemProps> = ({ file, onDelete }) => {
+  const handleDelete = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (onDelete) {
+      onDelete(file.id);
+    }
+  };
+
   return (
     <Link to={`/file/${file.id}`} className="block group">
       <div className="bg-white rounded-xl border border-slate-200 p-5 hover:shadow-lg hover:border-indigo-200 transition-all duration-200 relative overflow-hidden">
@@ -47,6 +56,16 @@ const FileListItem: React.FC<FileListItemProps> = ({ file }) => {
               </div>
             </div>
           </div>
+          
+          {onDelete && (
+            <button
+              onClick={handleDelete}
+              className="p-2 text-slate-400 hover:text-red-600 transition-colors rounded-full hover:bg-red-50 z-10 ml-4 shrink-0"
+              title="削除"
+            >
+              <TrashIcon className="h-5 w-5" />
+            </button>
+          )}
         </div>
       </div>
     </Link>

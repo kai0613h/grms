@@ -167,6 +167,21 @@ async def get_paper(
     return _paper_to_response(paper)
 
 
+@router.delete("/{paper_id}", status_code=204)
+async def delete_paper(
+    paper_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+):
+    result = await session.execute(select(Paper).where(Paper.id == paper_id))
+    paper = result.scalars().first()
+    if not paper:
+        raise HTTPException(status_code=404, detail="指定された論文が見つかりません。")
+
+    await session.delete(paper)
+    await session.commit()
+    return Response(status_code=204)
+
+
 @router.get("/{paper_id}/download")
 async def download_paper(
     paper_id: UUID,
