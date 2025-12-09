@@ -1,4 +1,3 @@
-
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import Input from '../components/Input';
@@ -17,7 +16,7 @@ import {
 import {
   fetchSubmissionThreadDetail,
   getSubmissionDownloadUrl,
-  submitAbstract,
+  submitFiles,
   deleteSubmission,
 } from '../utils/api';
 
@@ -41,7 +40,11 @@ const ThreadDetailPage: React.FC = () => {
   const [studentName, setStudentName] = useState('');
   const [laboratory, setLaboratory] = useState(LABORATORY_OPTIONS[0]?.value ?? '');
   const [title, setTitle] = useState('');
-  const [file, setFile] = useState<File | null>(null);
+  
+  const [abstractFile, setAbstractFile] = useState<File | null>(null);
+  const [paperFile, setPaperFile] = useState<File | null>(null);
+  const [presentationFile, setPresentationFile] = useState<File | null>(null);
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const loadDetail = async () => {
@@ -69,35 +72,40 @@ const ThreadDetailPage: React.FC = () => {
     [thread],
   );
 
-  const allowedExtensions = useMemo(() => {
-    return thread?.allowedExtensions && thread.allowedExtensions.length > 0
-      ? thread.allowedExtensions
-      : ['.pdf']; // Default to PDF if not specified
-  }, [thread]);
-
-  const acceptAttribute = allowedExtensions.join(',');
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>, type: 'abstract' | 'paper' | 'presentation') => {
     const selected = event.target.files?.[0];
-    if (selected) {
-      const extension = '.' + selected.name.split('.').pop()?.toLowerCase();
-      if (!allowedExtensions.includes(extension)) {
-        alert(`許可されていないファイル形式です。\n許可されている形式: ${allowedExtensions.join(', ')}`);
-        // Clear input
-        event.target.value = '';
-        return;
-      }
-      setFile(selected);
+    if (!selected) return;
+
+    const extension = '.' + selected.name.split('.').pop()?.toLowerCase();
+    
+    if (type === 'abstract' || type === 'paper') {
+        if (extension !== '.pdf') {
+            alert('PDFファイルを選択してください。');
+            event.target.value = '';
+            return;
+        }
+    } else if (type === 'presentation') {
+        if (!['.pdf', '.pptx'].includes(extension)) {
+            alert('PDFまたはPPTXファイルを選択してください。');
+            event.target.value = '';
+            return;
+        }
     }
+
+    if (type === 'abstract') setAbstractFile(selected);
+    if (type === 'paper') setPaperFile(selected);
+    if (type === 'presentation') setPresentationFile(selected);
   };
 
   const handleSubmission = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!threadId) return;
-    if (!file) {
-      alert('ファイルを選択してください。');
+    
+    if (!abstractFile && !paperFile && !presentationFile) {
+      alert('少なくとも1つのファイルを選択してください。');
       return;
     }
+    
     if (!studentNumber.trim() || !studentName.trim() || !title.trim()) {
       alert('学生番号・氏名・表題を入力してください。');
       return;
@@ -106,28 +114,35 @@ const ThreadDetailPage: React.FC = () => {
     setIsSubmitting(true);
     setError(null);
     try {
-      await submitAbstract({
+      await submitFiles({
         threadId,
         studentNumber: studentNumber.trim(),
         studentName: studentName.trim(),
         laboratory,
         title: title.trim(),
-        file,
+        abstractFile,
+        paperFile,
+        presentationFile,
       });
 
       setStudentNumber('');
       setStudentName('');
       setLaboratory(LABORATORY_OPTIONS[0]?.value ?? '');
       setTitle('');
-      setFile(null);
-      // Reset file input manually if needed, or just rely on state
-      const fileInput = document.getElementById('file-upload') as HTMLInputElement;
-      if (fileInput) fileInput.value = '';
+      setAbstractFile(null);
+      setPaperFile(null);
+      setPresentationFile(null);
+      
+      // Reset file inputs
+      ['abstract-upload', 'paper-upload', 'presentation-upload'].forEach(id => {
+          const el = document.getElementById(id) as HTMLInputElement;
+          if (el) el.value = '';
+      });
 
       await loadDetail();
     } catch (err) {
       console.error(err);
-      setError(err instanceof Error ? err.message : '抄録の提出に失敗しました。');
+      setError(err instanceof Error ? err.message : '提出に失敗しました。');
     } finally {
       setIsSubmitting(false);
     }
@@ -163,8 +178,8 @@ const ThreadDetailPage: React.FC = () => {
           <ArrowLeftIcon className="h-4 w-4 mr-1" />
           スレッド一覧に戻る
         </Link>
-        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">抄録提出スレッド詳細</h1>
-        <p className="mt-1 text-slate-500">抄録の提出状況を確認し、追加提出が行えます</p>
+        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">提出スレッド詳細</h1>
+        <p className="mt-1 text-slate-500">提出状況を確認し、追加提出が行えます</p>
       </div>
 
       {isLoading && !thread && (
@@ -189,24 +204,6 @@ const ThreadDetailPage: React.FC = () => {
               )}
 
               <dl className="space-y-4 text-sm">
-                {thread.submissionDeadline && (
-                  <div className="flex items-start">
-                    <dt className="min-w-[5rem] font-medium text-slate-500 flex items-center">
-                      <CalendarIcon className="h-4 w-4 mr-1.5 text-slate-400" />
-                      提出期限
-                    </dt>
-                    <dd className="font-medium text-slate-800">{detailFormatter.format(new Date(thread.submissionDeadline))}</dd>
-                  </div>
-                )}
-                {thread.eventDatetime && (
-                  <div className="flex items-start">
-                    <dt className="min-w-[5rem] font-medium text-slate-500 flex items-center">
-                      <CalendarIcon className="h-4 w-4 mr-1.5 text-slate-400" />
-                      発表日時
-                    </dt>
-                    <dd className="font-medium text-slate-800">{detailFormatter.format(new Date(thread.eventDatetime))}</dd>
-                  </div>
-                )}
                 <div className="flex items-start pt-4 border-t border-slate-100">
                   <dt className="min-w-[5rem] font-medium text-slate-500 flex items-center">
                     <DocumentTextIcon className="h-4 w-4 mr-1.5 text-slate-400" />
@@ -235,7 +232,7 @@ const ThreadDetailPage: React.FC = () => {
               <div className="p-6 border-b border-slate-100 bg-slate-50/50">
                 <h3 className="text-lg font-semibold text-slate-800 flex items-center">
                   <CloudArrowUpIcon className="h-5 w-5 mr-2 text-indigo-500" />
-                  抄録の提出
+                  ファイルの提出
                 </h3>
               </div>
               <div className="p-6">
@@ -287,32 +284,108 @@ const ThreadDetailPage: React.FC = () => {
                     />
                   </div>
 
-                  <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 border-dashed">
-                    <label className="block text-sm font-medium text-slate-700 mb-2">提出ファイル</label>
-                    <div className="flex items-center space-x-4">
-                      <label className="cursor-pointer inline-flex items-center px-4 py-2 border border-slate-300 rounded-lg shadow-sm text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">
-                        <CloudArrowUpIcon className="h-5 w-5 mr-2 text-slate-400" />
-                        ファイルを選択
-                        <input
-                          id="file-upload"
-                          type="file"
-                          accept={acceptAttribute}
-                          onChange={handleFileChange}
-                          className="hidden"
-                        />
-                      </label>
-                      <span className="text-sm text-slate-500">
-                        {file ? file.name : 'ファイルが選択されていません'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-400 mt-2">
-                      許可された形式: {allowedExtensions.join(', ')}（最大10MB）
-                    </p>
+                  {/* File Upload Sections */}
+                  <div className="space-y-4">
+                    {thread.hasAbstract && (
+                        <div className="p-4 bg-blue-50/50 rounded-xl border border-blue-100">
+                            <div className="flex justify-between items-center mb-2">
+                                <label className="block text-sm font-medium text-slate-700">抄録 (PDF)</label>
+                                {thread.abstractDeadline && (
+                                    <span className="text-xs text-red-600 font-medium">
+                                        期限: {detailFormatter.format(new Date(thread.abstractDeadline))}
+                                    </span>
+                                )}
+                            </div>
+                            <div className="flex items-center space-x-4">
+                            <label className="cursor-pointer inline-flex items-center px-4 py-2 border border-blue-200 rounded-lg shadow-sm text-sm font-medium text-blue-700 bg-white hover:bg-blue-50 focus:outline-none transition-colors">
+                                <CloudArrowUpIcon className="h-5 w-5 mr-2 text-blue-400" />
+                                ファイルを選択
+                                <input
+                                id="abstract-upload"
+                                type="file"
+                                accept=".pdf"
+                                onChange={(e) => handleFileChange(e, 'abstract')}
+                                className="hidden"
+                                />
+                            </label>
+                            <span className="text-sm text-slate-500 truncate">
+                                {abstractFile ? abstractFile.name : '未選択'}
+                            </span>
+                            </div>
+                            <p className="text-xs text-slate-400 mt-2">
+                              許可された形式: .pdf（最大10MB）
+                            </p>
+                        </div>
+                    )}
+
+                    {thread.hasPaper && (
+                        <div className="p-4 bg-green-50/50 rounded-xl border border-green-100">
+                            <div className="flex justify-between items-center mb-2">
+                                <label className="block text-sm font-medium text-slate-700">論文 (PDF)</label>
+                                {thread.paperDeadline && (
+                                    <span className="text-xs text-red-600 font-medium">
+                                        期限: {detailFormatter.format(new Date(thread.paperDeadline))}
+                                    </span>
+                                )}
+                            </div>
+                            <div className="flex items-center space-x-4">
+                            <label className="cursor-pointer inline-flex items-center px-4 py-2 border border-green-200 rounded-lg shadow-sm text-sm font-medium text-green-700 bg-white hover:bg-green-50 focus:outline-none transition-colors">
+                                <CloudArrowUpIcon className="h-5 w-5 mr-2 text-green-400" />
+                                ファイルを選択
+                                <input
+                                id="paper-upload"
+                                type="file"
+                                accept=".pdf"
+                                onChange={(e) => handleFileChange(e, 'paper')}
+                                className="hidden"
+                                />
+                            </label>
+                            <span className="text-sm text-slate-500 truncate">
+                                {paperFile ? paperFile.name : '未選択'}
+                            </span>
+                            </div>
+                            <p className="text-xs text-slate-400 mt-2">
+                              許可された形式: .pdf（最大10MB）
+                            </p>
+                        </div>
+                    )}
+
+                    {thread.hasPresentation && (
+                        <div className="p-4 bg-purple-50/50 rounded-xl border border-purple-100">
+                            <div className="flex justify-between items-center mb-2">
+                                <label className="block text-sm font-medium text-slate-700">発表資料 (PDF/PPTX)</label>
+                                {thread.presentationDeadline && (
+                                    <span className="text-xs text-red-600 font-medium">
+                                        期限: {detailFormatter.format(new Date(thread.presentationDeadline))}
+                                    </span>
+                                )}
+                            </div>
+                            <div className="flex items-center space-x-4">
+                            <label className="cursor-pointer inline-flex items-center px-4 py-2 border border-purple-200 rounded-lg shadow-sm text-sm font-medium text-purple-700 bg-white hover:bg-purple-50 focus:outline-none transition-colors">
+                                <CloudArrowUpIcon className="h-5 w-5 mr-2 text-purple-400" />
+                                ファイルを選択
+                                <input
+                                id="presentation-upload"
+                                type="file"
+                                accept=".pdf,.pptx"
+                                onChange={(e) => handleFileChange(e, 'presentation')}
+                                className="hidden"
+                                />
+                            </label>
+                            <span className="text-sm text-slate-500 truncate">
+                                {presentationFile ? presentationFile.name : '未選択'}
+                            </span>
+                            </div>
+                            <p className="text-xs text-slate-400 mt-2">
+                              許可された形式: .pdf, .pptx（最大10MB）
+                            </p>
+                        </div>
+                    )}
                   </div>
 
                   <div className="text-right pt-2">
                     <Button type="submit" variant="primary" disabled={isSubmitting} className="w-full sm:w-auto shadow-lg shadow-indigo-500/20">
-                      {isSubmitting ? '送信中...' : '抄録を提出'}
+                      {isSubmitting ? '送信中...' : '提出する'}
                     </Button>
                   </div>
                 </form>
@@ -322,7 +395,7 @@ const ThreadDetailPage: React.FC = () => {
             {/* Submissions List */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                <h3 className="text-lg font-semibold text-slate-800">提出済み抄録</h3>
+                <h3 className="text-lg font-semibold text-slate-800">提出済み一覧</h3>
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">
                   {submissions.length} 件
                 </span>
@@ -330,39 +403,51 @@ const ThreadDetailPage: React.FC = () => {
 
               {submissions.length === 0 ? (
                 <div className="p-12 text-center text-slate-500">
-                  <p>まだ抄録が提出されていません。</p>
+                  <p>まだ提出がありません。</p>
                 </div>
               ) : (
                 <div className="divide-y divide-slate-100">
                   {submissions.map((submission) => (
                     <div key={submission.id} className="p-5 hover:bg-slate-50 transition-colors">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                         <div className="flex-1 min-w-0">
                           <h4 className="text-base font-bold text-slate-800 mb-1 truncate">{submission.title}</h4>
-                          <div className="flex flex-wrap items-center text-sm text-slate-600 gap-x-3 gap-y-1">
+                          <div className="flex flex-wrap items-center text-sm text-slate-600 gap-x-3 gap-y-1 mb-2">
                             <span className="font-medium text-indigo-600">{submission.studentNumber}</span>
                             <span className="text-slate-300">|</span>
                             <span>{submission.studentName}</span>
                             <span className="text-slate-300">|</span>
                             <span className="text-slate-500">{submission.laboratory}</span>
                           </div>
+                          
+                          {/* Submitted Files Badges/Links */}
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {submission.abstractFilename && (
+                                <a href={getSubmissionDownloadUrl(submission.threadId, submission.id, 'abstract')} className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors">
+                                    <ArrowDownTrayIcon className="h-3 w-3 mr-1" />
+                                    抄録
+                                </a>
+                            )}
+                            {submission.paperFilename && (
+                                <a href={getSubmissionDownloadUrl(submission.threadId, submission.id, 'paper')} className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-green-100 text-green-700 hover:bg-green-200 transition-colors">
+                                    <ArrowDownTrayIcon className="h-3 w-3 mr-1" />
+                                    論文
+                                </a>
+                            )}
+                            {submission.presentationFilename && (
+                                <a href={getSubmissionDownloadUrl(submission.threadId, submission.id, 'presentation')} className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-purple-100 text-purple-700 hover:bg-purple-200 transition-colors">
+                                    <ArrowDownTrayIcon className="h-3 w-3 mr-1" />
+                                    発表資料
+                                </a>
+                            )}
+                          </div>
                         </div>
                         <div className="flex items-center gap-3 shrink-0">
                           <div className="text-right hidden sm:block">
                             <div className="text-xs text-slate-500">
-                              {detailFormatter.format(new Date(submission.submittedAt))}
-                            </div>
-                            <div className="text-xs text-slate-400">
-                              {(submission.pdfSize / 1024).toFixed(1)} KB
+                              更新: {detailFormatter.format(new Date(submission.submittedAt))}
                             </div>
                           </div>
-                          <a
-                            href={getSubmissionDownloadUrl(submission.threadId, submission.id)}
-                            className="inline-flex items-center p-2 border border-slate-200 rounded-lg text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-all"
-                            title="PDFをダウンロード"
-                          >
-                            <ArrowDownTrayIcon className="h-5 w-5" />
-                          </a>
                           <button
                             onClick={() => handleDeleteSubmission(submission.id)}
                             className="inline-flex items-center p-2 border border-slate-200 rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all"

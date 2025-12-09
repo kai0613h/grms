@@ -6,7 +6,8 @@ export const APP_TITLE = "卒業研究管理システム GRMS";
 export const NAV_LINKS: NavItemType[] = [
   { label: "Home", path: "/search" }, // Home navigates to search as per common pattern
   { label: "アップロード", path: "/upload" },
-  { label: "抄録提出", path: "/threads" },
+  { label: "提出", path: "/threads" },
+  { label: "提出状況", path: "/status" },
   { label: "プログラム生成", path: "/create-program" },
   { label: "抄録集", path: "/generate-abstracts" },
   { label: "コンタクトタイム生成", path: "/generate-contact-time" },

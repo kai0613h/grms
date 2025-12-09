@@ -106,9 +106,13 @@ interface ThreadApiModel {
   id: string;
   name: string;
   description?: string | null;
-  submission_deadline?: string | null;
+  abstract_deadline?: string | null;
+  paper_deadline?: string | null;
+  presentation_deadline?: string | null;
   event_datetime?: string | null;
-  allowed_extensions?: string[] | null;
+  has_abstract: boolean;
+  has_paper: boolean;
+  has_presentation: boolean;
   created_at: string;
   updated_at: string;
   submission_count: number;
@@ -126,8 +130,9 @@ interface SubmissionApiModel {
   laboratory: string;
   laboratory_id: number;
   title: string;
-  pdf_filename: string;
-  pdf_size: number;
+  abstract_filename?: string;
+  paper_filename?: string;
+  presentation_filename?: string;
   submitted_at: string;
 }
 
@@ -157,19 +162,23 @@ const mapSubmission = (submission: SubmissionApiModel): ThreadSubmission => ({
   laboratory: submission.laboratory,
   laboratoryId: submission.laboratory_id,
   title: submission.title,
-  pdfFilename: submission.pdf_filename,
-  pdfSize: submission.pdf_size,
+  abstractFilename: submission.abstract_filename,
+  paperFilename: submission.paper_filename,
+  presentationFilename: submission.presentation_filename,
   submittedAt: submission.submitted_at,
-  downloadUrl: `${API_BASE_URL}/conference/threads/${submission.thread_id}/submissions/${submission.id}/download`,
 });
 
 const mapThreadSummary = (thread: ThreadApiModel): SubmissionThreadSummary => ({
   id: thread.id,
   name: thread.name,
   description: thread.description ?? undefined,
-  submissionDeadline: toIsoString(thread.submission_deadline),
+  abstractDeadline: toIsoString(thread.abstract_deadline),
+  paperDeadline: toIsoString(thread.paper_deadline),
+  presentationDeadline: toIsoString(thread.presentation_deadline),
   eventDatetime: toIsoString(thread.event_datetime),
-  allowedExtensions: thread.allowed_extensions ?? undefined,
+  hasAbstract: thread.has_abstract,
+  hasPaper: thread.has_paper,
+  hasPresentation: thread.has_presentation,
   submissionCount: thread.submission_count ?? 0,
   createdAt: thread.created_at,
   updatedAt: thread.updated_at,
@@ -350,9 +359,13 @@ export const fetchSubmissionThreads = async (): Promise<SubmissionThreadSummary[
 interface CreateThreadPayload {
   name: string;
   description?: string;
-  submissionDeadline?: string;
+  abstractDeadline?: string;
+  paperDeadline?: string;
+  presentationDeadline?: string;
   eventDatetime?: string;
-  allowedExtensions?: string[];
+  hasAbstract: boolean;
+  hasPaper: boolean;
+  hasPresentation: boolean;
 }
 
 export const createSubmissionThread = async (payload: CreateThreadPayload): Promise<SubmissionThreadSummary> => {
@@ -364,9 +377,13 @@ export const createSubmissionThread = async (payload: CreateThreadPayload): Prom
     body: JSON.stringify({
       name: payload.name,
       description: payload.description,
-      submission_deadline: payload.submissionDeadline,
-      event_datetime: payload.eventDatetime,
-      allowed_extensions: payload.allowedExtensions,
+      abstract_deadline: payload.abstractDeadline,
+      paper_deadline: payload.paperDeadline,
+      presentation_deadline: payload.presentationDeadline,
+      // event_datetime: payload.eventDatetime, // Removed per requirement
+      has_abstract: payload.hasAbstract,
+      has_paper: payload.hasPaper,
+      has_presentation: payload.hasPresentation,
     }),
   });
   if (!response.ok) {
@@ -394,22 +411,27 @@ export const fetchSubmissionThreadDetail = async (threadId: string): Promise<Sub
   return mapThreadDetail(payload);
 };
 
-interface CreateSubmissionPayload {
+interface SubmitFilesPayload {
   threadId: string;
   studentNumber: string;
   studentName: string;
   laboratory: string;
   title: string;
-  file: File;
+  abstractFile?: File | null;
+  paperFile?: File | null;
+  presentationFile?: File | null;
 }
 
-export const submitAbstract = async (payload: CreateSubmissionPayload): Promise<ThreadSubmission> => {
+export const submitFiles = async (payload: SubmitFilesPayload): Promise<ThreadSubmission> => {
   const formData = new FormData();
   formData.append('student_number', payload.studentNumber);
   formData.append('student_name', payload.studentName);
   formData.append('laboratory', payload.laboratory);
   formData.append('title', payload.title);
-  formData.append('pdf', payload.file);
+  
+  if (payload.abstractFile) formData.append('abstract_file', payload.abstractFile);
+  if (payload.paperFile) formData.append('paper_file', payload.paperFile);
+  if (payload.presentationFile) formData.append('presentation_file', payload.presentationFile);
 
   const response = await fetch(`${API_BASE_URL}/conference/threads/${payload.threadId}/submissions`, {
     method: 'POST',
@@ -433,8 +455,8 @@ export const deleteSubmission = async (threadId: string, submissionId: string): 
   }
 };
 
-export const getSubmissionDownloadUrl = (threadId: string, submissionId: string): string =>
-  `${API_BASE_URL}/conference/threads/${threadId}/submissions/${submissionId}/download`;
+export const getSubmissionDownloadUrl = (threadId: string, submissionId: string, type: 'abstract' | 'paper' | 'presentation'): string =>
+  `${API_BASE_URL}/conference/threads/${threadId}/submissions/${submissionId}/download?type=${type}`;
 
 interface CreateProgramPayload {
   threadId: string;

@@ -56,18 +56,24 @@ def _quote_filename(filename: str) -> str:
 class ThreadCreateRequest(BaseModel):
     name: str = Field(..., max_length=200)
     description: Optional[str] = None
-    submission_deadline: Optional[datetime] = None
-    event_datetime: Optional[datetime] = None
-    allowed_extensions: Optional[List[str]] = None
+    abstract_deadline: Optional[datetime] = None
+    paper_deadline: Optional[datetime] = None
+    presentation_deadline: Optional[datetime] = None
+    has_abstract: bool = True
+    has_paper: bool = False
+    has_presentation: bool = False
 
 
 class ThreadResponse(BaseModel):
     id: UUID
     name: str
     description: Optional[str]
-    submission_deadline: Optional[datetime]
-    event_datetime: Optional[datetime]
-    allowed_extensions: Optional[List[str]] = None
+    abstract_deadline: Optional[datetime]
+    paper_deadline: Optional[datetime]
+    presentation_deadline: Optional[datetime]
+    has_abstract: bool
+    has_paper: bool
+    has_presentation: bool
     created_at: datetime
     updated_at: datetime
     submission_count: int = 0
@@ -81,8 +87,12 @@ class SubmissionResponse(BaseModel):
     laboratory: str
     laboratory_id: int
     title: str
-    pdf_filename: str
-    pdf_size: int
+    
+    # File existence flags and filenames
+    abstract_filename: Optional[str] = None
+    paper_filename: Optional[str] = None
+    presentation_filename: Optional[str] = None
+    
     submitted_at: datetime
 
 
@@ -140,9 +150,12 @@ def _thread_to_response(thread: SubmissionThread, submission_count: int) -> Thre
         id=thread.id,
         name=thread.name,
         description=thread.description,
-        submission_deadline=thread.submission_deadline,
-        event_datetime=thread.event_datetime,
-        allowed_extensions=thread.allowed_extensions,
+        abstract_deadline=thread.abstract_deadline,
+        paper_deadline=thread.paper_deadline,
+        presentation_deadline=thread.presentation_deadline,
+        has_abstract=thread.has_abstract,
+        has_paper=thread.has_paper,
+        has_presentation=thread.has_presentation,
         created_at=thread.created_at,
         updated_at=thread.updated_at,
         submission_count=submission_count,
@@ -158,8 +171,9 @@ def _submission_to_response(submission: AbstractSubmission) -> SubmissionRespons
         laboratory=submission.laboratory,
         laboratory_id=submission.laboratory_id,
         title=submission.title,
-        pdf_filename=submission.pdf_filename,
-        pdf_size=submission.pdf_size,
+        abstract_filename=submission.pdf_filename,
+        paper_filename=submission.paper_filename,
+        presentation_filename=submission.presentation_filename,
         submitted_at=submission.submitted_at,
     )
 
@@ -186,9 +200,12 @@ async def create_thread(
     thread = SubmissionThread(
         name=payload.name.strip(),
         description=payload.description.strip() if payload.description else None,
-        submission_deadline=payload.submission_deadline,
-        event_datetime=payload.event_datetime,
-        allowed_extensions=payload.allowed_extensions,
+        abstract_deadline=payload.abstract_deadline,
+        paper_deadline=payload.paper_deadline,
+        presentation_deadline=payload.presentation_deadline,
+        has_abstract=payload.has_abstract,
+        has_paper=payload.has_paper,
+        has_presentation=payload.has_presentation,
     )
     session.add(thread)
     await session.commit()
@@ -259,9 +276,12 @@ async def create_submission(
     student_name: str = Form(...),
     laboratory: str = Form(...),
     title: str = Form(...),
-    pdf: UploadFile = File(...),
+    abstract_file: Optional[UploadFile] = File(None),
+    paper_file: Optional[UploadFile] = File(None),
+    presentation_file: Optional[UploadFile] = File(None),
     session: AsyncSession = Depends(get_db_session),
 ) -> SubmissionResponse:
+    # 1. Check Thread
     result = await session.execute(select(SubmissionThread).where(SubmissionThread.id == thread_id))
     thread = result.scalars().first()
     if not thread:
@@ -270,35 +290,87 @@ async def create_submission(
     if laboratory not in LABORATORY_CHOICES:
         raise HTTPException(status_code=400, detail="無効な研究室が選択されました。")
 
-    if thread.allowed_extensions:
-        filename = pdf.filename.lower()
-        if not any(filename.endswith(ext.lower()) for ext in thread.allowed_extensions):
-            allowed_str = ", ".join(thread.allowed_extensions)
-            raise HTTPException(
-                status_code=400,
-                detail=f"許可されていないファイル形式です。許可されている形式: {allowed_str}",
-            )
-
-    pdf_bytes = await pdf.read()
-    if not pdf_bytes:
-        raise HTTPException(status_code=400, detail="空のファイルはアップロードできません。")
-    if len(pdf_bytes) > MAX_UPLOAD_SIZE_BYTES:
-        raise HTTPException(status_code=413, detail="ファイルサイズが上限（10MB）を超えています。")
-
-    submission = AbstractSubmission(
-        thread_id=thread_id,
-        student_number=student_number.strip(),
-        student_name=student_name.strip(),
-        laboratory=laboratory,
-        laboratory_id=LABORATORY_CHOICES[laboratory],
-        title=title.strip(),
-        pdf_filename=pdf.filename,
-        pdf_content_type=pdf.content_type or "application/pdf",
-        pdf_size=len(pdf_bytes),
-        pdf_data=pdf_bytes,
+    # 2. Check Existing Submission (Upsert Logic)
+    stmt = select(AbstractSubmission).where(
+        AbstractSubmission.thread_id == thread_id,
+        AbstractSubmission.student_number == student_number.strip()
     )
+    existing_result = await session.execute(stmt)
+    submission = existing_result.scalars().first()
 
-    session.add(submission)
+    is_new = False
+    if not submission:
+        is_new = True
+        submission = AbstractSubmission(
+            thread_id=thread_id,
+            student_number=student_number.strip(),
+            student_name=student_name.strip(),
+            laboratory=laboratory,
+            laboratory_id=LABORATORY_CHOICES[laboratory],
+            title=title.strip(),
+            # Initialize fields to ensure they are not null if DB requires it, 
+            # though our schema allows nulls for files.
+            # We set non-file fields here.
+        )
+    else:
+        # Update metadata
+        submission.student_name = student_name.strip()
+        submission.laboratory = laboratory
+        submission.laboratory_id = LABORATORY_CHOICES[laboratory]
+        submission.title = title.strip()
+        # Update timestamp
+        submission.submitted_at = datetime.now()
+
+    # 3. Process Files
+    # Helper to validate and read
+    async def process_file(file_obj: UploadFile, allowed_exts: List[str], type_name: str, deadline: Optional[datetime]):
+        if deadline and datetime.now(deadline.tzinfo) > deadline:
+             raise HTTPException(status_code=400, detail=f"{type_name}の提出期限（{deadline}）を過ぎています。")
+        
+        filename = file_obj.filename.lower()
+        if not any(filename.endswith(ext) for ext in allowed_exts):
+             raise HTTPException(status_code=400, detail=f"{type_name}は {', '.join(allowed_exts)} 形式である必要があります。")
+        data = await file_obj.read()
+        if len(data) > MAX_UPLOAD_SIZE_BYTES:
+            raise HTTPException(status_code=413, detail=f"{type_name}のサイズが上限（10MB）を超えています。")
+        return data
+
+    # Abstract
+    if abstract_file:
+        if not thread.has_abstract:
+             raise HTTPException(status_code=400, detail="このスレッドでは抄録の提出は受け付けていません。")
+        data = await process_file(abstract_file, [".pdf"], "抄録", thread.abstract_deadline)
+        submission.pdf_filename = abstract_file.filename
+        submission.pdf_content_type = abstract_file.content_type or "application/pdf"
+        submission.pdf_size = len(data)
+        submission.pdf_data = data
+    elif is_new and thread.has_abstract:
+        # Allow partial submission, do not raise error
+        pass
+
+    # Paper
+    if paper_file:
+        if not thread.has_paper:
+             raise HTTPException(status_code=400, detail="このスレッドでは論文の提出は受け付けていません。")
+        data = await process_file(paper_file, [".pdf"], "論文", thread.paper_deadline)
+        submission.paper_filename = paper_file.filename
+        submission.paper_content_type = paper_file.content_type or "application/pdf"
+        submission.paper_size = len(data)
+        submission.paper_data = data
+
+    # Presentation
+    if presentation_file:
+        if not thread.has_presentation:
+             raise HTTPException(status_code=400, detail="このスレッドでは発表資料の提出は受け付けていません。")
+        data = await process_file(presentation_file, [".pdf", ".pptx"], "発表資料", thread.presentation_deadline)
+        submission.presentation_filename = presentation_file.filename
+        submission.presentation_content_type = presentation_file.content_type or "application/octet-stream"
+        submission.presentation_size = len(data)
+        submission.presentation_data = data
+
+    if is_new:
+        session.add(submission)
+    
     await session.commit()
     await session.refresh(submission)
     return _submission_to_response(submission)
@@ -352,6 +424,7 @@ async def delete_submission(
 async def download_submission(
     thread_id: UUID,
     submission_id: UUID,
+    type: str = Query("abstract", description="File type: abstract, paper, or presentation"),
     session: AsyncSession = Depends(get_db_session),
 ) -> Response:
     stmt = select(AbstractSubmission).where(
@@ -361,12 +434,34 @@ async def download_submission(
     result = await session.execute(stmt)
     submission = result.scalars().first()
     if not submission:
-        raise HTTPException(status_code=404, detail="指定された抄録が見つかりません。")
+        raise HTTPException(status_code=404, detail="指定された提出物が見つかりません。")
+
+    data = None
+    filename = None
+    content_type = None
+
+    if type == "abstract":
+        data = submission.pdf_data
+        filename = submission.pdf_filename
+        content_type = submission.pdf_content_type
+    elif type == "paper":
+        data = submission.paper_data
+        filename = submission.paper_filename
+        content_type = submission.paper_content_type
+    elif type == "presentation":
+        data = submission.presentation_data
+        filename = submission.presentation_filename
+        content_type = submission.presentation_content_type
+    else:
+        raise HTTPException(status_code=400, detail="無効なファイルタイプです。")
+
+    if not data:
+        raise HTTPException(status_code=404, detail=f"指定されたファイル（{type}）は提出されていません。")
 
     headers = {
-        "Content-Disposition": _quote_filename(submission.pdf_filename or f"{submission.id}.pdf"),
+        "Content-Disposition": _quote_filename(filename or f"{submission.id}_{type}.bin"),
     }
-    return Response(content=submission.pdf_data, media_type=submission.pdf_content_type, headers=headers)
+    return Response(content=data, media_type=content_type or "application/octet-stream", headers=headers)
 
 
 def _to_minutes(time_str: str) -> int:
@@ -675,9 +770,13 @@ async def download_program_with_abstracts(
     for entry in program.presentation_order:
         submission_id = UUID(entry["submission_id"])
         submission = submissions_map.get(submission_id)
-        if not submission:
+        if not submission or not submission.pdf_data:
             continue
-        append_reader(PdfReader(io.BytesIO(submission.pdf_data)))
+        try:
+            append_reader(PdfReader(io.BytesIO(submission.pdf_data)))
+        except Exception:
+            # Ignore PDF errors
+            continue
 
     output_buffer = io.BytesIO()
     writer.write(output_buffer)

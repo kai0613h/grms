@@ -1,4 +1,3 @@
-
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Input from '../components/Input';
@@ -29,9 +28,14 @@ const SubmissionThreadsPage: React.FC = () => {
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [deadlineInput, setDeadlineInput] = useState('');
-  const [eventDatetimeInput, setEventDatetimeInput] = useState('');
-  const [allowedExtensions, setAllowedExtensions] = useState<string[]>(['.pdf']);
+  
+  const [hasAbstract, setHasAbstract] = useState(true);
+  const [hasPaper, setHasPaper] = useState(false);
+  const [hasPresentation, setHasPresentation] = useState(false);
+
+  const [abstractDeadline, setAbstractDeadline] = useState('');
+  const [paperDeadline, setPaperDeadline] = useState('');
+  const [presentationDeadline, setPresentationDeadline] = useState('');
 
   const loadThreads = async () => {
     setIsLoading(true);
@@ -51,22 +55,14 @@ const SubmissionThreadsPage: React.FC = () => {
     loadThreads();
   }, []);
 
-  const handleExtensionChange = (ext: string) => {
-    setAllowedExtensions(prev =>
-      prev.includes(ext)
-        ? prev.filter(e => e !== ext)
-        : [...prev, ext]
-    );
-  };
-
   const handleCreateThread = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!name.trim()) {
       alert('発表会名を入力してください。');
       return;
     }
-    if (allowedExtensions.length === 0) {
-      alert('少なくとも1つの提出形式を選択してください。');
+    if (!hasAbstract && !hasPaper && !hasPresentation) {
+      alert('少なくとも1つの提出物を選択してください。');
       return;
     }
 
@@ -77,16 +73,22 @@ const SubmissionThreadsPage: React.FC = () => {
       await createSubmissionThread({
         name: name.trim(),
         description: description.trim() || undefined,
-        submissionDeadline: deadlineInput ? new Date(deadlineInput).toISOString() : undefined,
-        eventDatetime: eventDatetimeInput ? new Date(eventDatetimeInput).toISOString() : undefined,
-        allowedExtensions: allowedExtensions,
+        abstractDeadline: (hasAbstract && abstractDeadline) ? new Date(abstractDeadline).toISOString() : undefined,
+        paperDeadline: (hasPaper && paperDeadline) ? new Date(paperDeadline).toISOString() : undefined,
+        presentationDeadline: (hasPresentation && presentationDeadline) ? new Date(presentationDeadline).toISOString() : undefined,
+        hasAbstract,
+        hasPaper,
+        hasPresentation,
       });
 
       setName('');
       setDescription('');
-      setDeadlineInput('');
-      setEventDatetimeInput('');
-      setAllowedExtensions(['.pdf']);
+      setAbstractDeadline('');
+      setPaperDeadline('');
+      setPresentationDeadline('');
+      setHasAbstract(true);
+      setHasPaper(false);
+      setHasPresentation(false);
       await loadThreads();
     } catch (err) {
       console.error(err);
@@ -122,8 +124,8 @@ const SubmissionThreadsPage: React.FC = () => {
   return (
     <div className="max-w-6xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-900 tracking-tight">抄録提出スレッド</h1>
-        <p className="mt-2 text-slate-500">発表会ごとの抄録提出スレッドを作成・管理します</p>
+        <h1 className="text-3xl font-bold text-slate-900 tracking-tight">提出スレッド</h1>
+        <p className="mt-2 text-slate-500">発表会ごとの提出スレッドを作成・管理します</p>
       </div>
 
       <div className="grid gap-8 lg:grid-cols-12">
@@ -152,42 +154,77 @@ const SubmissionThreadsPage: React.FC = () => {
                   onChange={(event) => setDescription(event.target.value)}
                   rows={4}
                 />
-                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                  <Input
-                    label="提出期限"
-                    type="datetime-local"
-                    value={deadlineInput}
-                    onChange={(event) => setDeadlineInput(event.target.value)}
-                  />
-                  <Input
-                    label="発表日時"
-                    type="datetime-local"
-                    value={eventDatetimeInput}
-                    onChange={(event) => setEventDatetimeInput(event.target.value)}
-                  />
-                </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">提出形式</label>
-                  <div className="flex space-x-4">
-                    <label className="flex items-center space-x-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={allowedExtensions.includes('.pdf')}
-                        onChange={() => handleExtensionChange('.pdf')}
-                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                      />
-                      <span className="text-sm text-slate-700">PDF (.pdf)</span>
-                    </label>
-                    <label className="flex items-center space-x-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={allowedExtensions.includes('.pptx')}
-                        onChange={() => handleExtensionChange('.pptx')}
-                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                      />
-                      <span className="text-sm text-slate-700">PowerPoint (.pptx)</span>
-                    </label>
+                  <label className="block text-sm font-medium text-slate-700 mb-3">必要な提出物と期限</label>
+                  <div className="space-y-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                    
+                    {/* Abstract */}
+                    <div>
+                        <label className="flex items-center space-x-2 cursor-pointer mb-2">
+                        <input
+                            type="checkbox"
+                            checked={hasAbstract}
+                            onChange={(e) => setHasAbstract(e.target.checked)}
+                            className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span className="text-sm font-bold text-slate-700">抄録 (PDF)</span>
+                        </label>
+                        {hasAbstract && (
+                            <Input
+                                type="datetime-local"
+                                value={abstractDeadline}
+                                onChange={(e) => setAbstractDeadline(e.target.value)}
+                                containerClassName="ml-6 mb-0"
+                                className="py-1.5 text-xs"
+                            />
+                        )}
+                    </div>
+
+                    {/* Paper */}
+                    <div>
+                        <label className="flex items-center space-x-2 cursor-pointer mb-2">
+                        <input
+                            type="checkbox"
+                            checked={hasPaper}
+                            onChange={(e) => setHasPaper(e.target.checked)}
+                            className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span className="text-sm font-bold text-slate-700">論文 (PDF)</span>
+                        </label>
+                        {hasPaper && (
+                            <Input
+                                type="datetime-local"
+                                value={paperDeadline}
+                                onChange={(e) => setPaperDeadline(e.target.value)}
+                                containerClassName="ml-6 mb-0"
+                                className="py-1.5 text-xs"
+                            />
+                        )}
+                    </div>
+
+                    {/* Presentation */}
+                    <div>
+                        <label className="flex items-center space-x-2 cursor-pointer mb-2">
+                        <input
+                            type="checkbox"
+                            checked={hasPresentation}
+                            onChange={(e) => setHasPresentation(e.target.checked)}
+                            className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span className="text-sm font-bold text-slate-700">発表資料 (PDF/PPTX)</span>
+                        </label>
+                        {hasPresentation && (
+                            <Input
+                                type="datetime-local"
+                                value={presentationDeadline}
+                                onChange={(e) => setPresentationDeadline(e.target.value)}
+                                containerClassName="ml-6 mb-0"
+                                className="py-1.5 text-xs"
+                            />
+                        )}
+                    </div>
+
                   </div>
                 </div>
 
@@ -259,25 +296,35 @@ const SubmissionThreadsPage: React.FC = () => {
                       <p className="text-sm text-slate-600 mb-4 line-clamp-2">{thread.description}</p>
                     )}
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-slate-500">
-                      {thread.submissionDeadline && (
-                        <div className="flex items-center">
-                          <CalendarIcon className="h-4 w-4 mr-1.5 text-slate-400" />
-                          <span className="font-medium mr-1.5">提出期限:</span>
-                          <span className="text-slate-700">{deadlineFormatter.format(new Date(thread.submissionDeadline))}</span>
+                    <div className="space-y-2 mt-4">
+                      {thread.hasAbstract && (
+                        <div className="flex items-center text-xs">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100 min-w-[4rem] justify-center mr-2">
+                                抄録
+                            </span>
+                            <span className="text-slate-500">
+                                {thread.abstractDeadline ? `期限: ${deadlineFormatter.format(new Date(thread.abstractDeadline))}` : '期限なし'}
+                            </span>
                         </div>
                       )}
-                      {thread.eventDatetime && (
-                        <div className="flex items-center">
-                          <CalendarIcon className="h-4 w-4 mr-1.5 text-slate-400" />
-                          <span className="font-medium mr-1.5">発表日時:</span>
-                          <span className="text-slate-700">{deadlineFormatter.format(new Date(thread.eventDatetime))}</span>
+                      {thread.hasPaper && (
+                        <div className="flex items-center text-xs">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-50 text-green-700 border border-green-100 min-w-[4rem] justify-center mr-2">
+                                論文
+                            </span>
+                            <span className="text-slate-500">
+                                {thread.paperDeadline ? `期限: ${deadlineFormatter.format(new Date(thread.paperDeadline))}` : '期限なし'}
+                            </span>
                         </div>
                       )}
-                      {thread.allowedExtensions && thread.allowedExtensions.length > 0 && (
-                        <div className="flex items-center sm:col-span-2">
-                          <span className="font-medium mr-1.5">形式:</span>
-                          <span className="text-slate-700">{thread.allowedExtensions.join(', ')}</span>
+                      {thread.hasPresentation && (
+                        <div className="flex items-center text-xs">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-50 text-purple-700 border border-purple-100 min-w-[4rem] justify-center mr-2">
+                                発表資料
+                            </span>
+                            <span className="text-slate-500">
+                                {thread.presentationDeadline ? `期限: ${deadlineFormatter.format(new Date(thread.presentationDeadline))}` : '期限なし'}
+                            </span>
                         </div>
                       )}
                     </div>

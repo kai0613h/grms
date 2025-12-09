@@ -31,9 +31,13 @@ export interface SubmissionThreadSummary {
   id: string;
   name: string;
   description?: string;
-  submissionDeadline?: string;
+  abstractDeadline?: string;
+  paperDeadline?: string;
+  presentationDeadline?: string;
   eventDatetime?: string;
-  allowedExtensions?: string[];
+  hasAbstract: boolean;
+  hasPaper: boolean;
+  hasPresentation: boolean;
   submissionCount: number;
   createdAt: string;
   updatedAt: string;
@@ -51,10 +55,10 @@ export interface ThreadSubmission {
   laboratory: string;
   laboratoryId: number;
   title: string;
-  pdfFilename: string;
-  pdfSize: number;
+  abstractFilename?: string;
+  paperFilename?: string;
+  presentationFilename?: string;
   submittedAt: string;
-  downloadUrl: string;
 }
 
 export interface ProgramSessionDefinition {

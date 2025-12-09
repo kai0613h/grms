@@ -1,36 +1,35 @@
 
 import React from 'react';
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
 import SearchPage from './pages/SearchPage';
 import UploadPage from './pages/UploadPage';
 import FileDetailsPage from './pages/FileDetailsPage';
+import SubmissionThreadsPage from './pages/SubmissionThreadsPage';
+import ThreadDetailPage from './pages/ThreadDetailPage';
 import CreateProgramPage from './pages/CreateProgramPage';
 import GenerateAbstractsPage from './pages/GenerateAbstractsPage';
 import GenerateContactTimePage from './pages/GenerateContactTimePage';
-import SubmissionThreadsPage from './pages/SubmissionThreadsPage';
-import ThreadDetailPage from './pages/ThreadDetailPage';
-import { Page } from './types';
+import SubmissionStatusPage from './pages/SubmissionStatusPage';
 
 const App: React.FC = () => {
   return (
-    <HashRouter>
+    <Router>
       <Layout>
         <Routes>
-          <Route path="/" element={<Navigate to={Page.Search} replace />} />
-          <Route path={Page.Search} element={<SearchPage />} />
-          <Route path={Page.Upload} element={<UploadPage />} />
-          <Route path="/file/:fileId" element={<FileDetailsPage />} /> {/* Dynamic route */}
-          <Route path={Page.SubmissionThreads} element={<SubmissionThreadsPage />} />
+          <Route path="/" element={<SearchPage />} />
+          <Route path="/search" element={<SearchPage />} />
+          <Route path="/upload" element={<UploadPage />} />
+          <Route path="/file/:id" element={<FileDetailsPage />} />
+          <Route path="/threads" element={<SubmissionThreadsPage />} />
           <Route path="/threads/:threadId" element={<ThreadDetailPage />} />
-          <Route path={Page.CreateProgram} element={<CreateProgramPage />} />
-          <Route path={Page.GenerateAbstracts} element={<GenerateAbstractsPage />} />
-          <Route path={Page.GenerateContactTime} element={<GenerateContactTimePage />} />
-          {/* Add a fallback or 404 page if desired */}
-          <Route path="*" element={<Navigate to={Page.Search} replace />} />
+          <Route path="/status" element={<SubmissionStatusPage />} />
+          <Route path="/create-program" element={<CreateProgramPage />} />
+          <Route path="/generate-abstracts" element={<GenerateAbstractsPage />} />
+          <Route path="/generate-contact-time" element={<GenerateContactTimePage />} />
         </Routes>
       </Layout>
-    </HashRouter>
+    </Router>
   );
 };
 
