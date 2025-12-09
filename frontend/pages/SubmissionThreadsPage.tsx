@@ -31,7 +31,6 @@ const SubmissionThreadsPage: React.FC = () => {
   const [description, setDescription] = useState('');
   const [deadlineInput, setDeadlineInput] = useState('');
   const [eventDatetimeInput, setEventDatetimeInput] = useState('');
-  const [eventLocation, setEventLocation] = useState('');
   const [allowedExtensions, setAllowedExtensions] = useState<string[]>(['.pdf']);
 
   const loadThreads = async () => {
@@ -80,7 +79,6 @@ const SubmissionThreadsPage: React.FC = () => {
         description: description.trim() || undefined,
         submissionDeadline: deadlineInput ? new Date(deadlineInput).toISOString() : undefined,
         eventDatetime: eventDatetimeInput ? new Date(eventDatetimeInput).toISOString() : undefined,
-        eventLocation: eventLocation.trim() || undefined,
         allowedExtensions: allowedExtensions,
       });
 
@@ -88,7 +86,6 @@ const SubmissionThreadsPage: React.FC = () => {
       setDescription('');
       setDeadlineInput('');
       setEventDatetimeInput('');
-      setEventLocation('');
       setAllowedExtensions(['.pdf']);
       await loadThreads();
     } catch (err) {
@@ -169,13 +166,6 @@ const SubmissionThreadsPage: React.FC = () => {
                     onChange={(event) => setEventDatetimeInput(event.target.value)}
                   />
                 </div>
-                <Input
-                  label="会場"
-                  placeholder="例: 6階 IS-631・632"
-                  value={eventLocation}
-                  onChange={(event) => setEventLocation(event.target.value)}
-                  icon={<MapPinIcon className="h-5 w-5 text-slate-400" />}
-                />
                 
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">提出形式</label>
@@ -282,13 +272,6 @@ const SubmissionThreadsPage: React.FC = () => {
                           <CalendarIcon className="h-4 w-4 mr-1.5 text-slate-400" />
                           <span className="font-medium mr-1.5">発表日時:</span>
                           <span className="text-slate-700">{deadlineFormatter.format(new Date(thread.eventDatetime))}</span>
-                        </div>
-                      )}
-                      {thread.eventLocation && (
-                        <div className="flex items-center">
-                          <MapPinIcon className="h-4 w-4 mr-1.5 text-slate-400" />
-                          <span className="font-medium mr-1.5">会場:</span>
-                          <span className="text-slate-700">{thread.eventLocation}</span>
                         </div>
                       )}
                       {thread.allowedExtensions && thread.allowedExtensions.length > 0 && (

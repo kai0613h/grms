@@ -207,15 +207,6 @@ const ThreadDetailPage: React.FC = () => {
                     <dd className="font-medium text-slate-800">{detailFormatter.format(new Date(thread.eventDatetime))}</dd>
                   </div>
                 )}
-                {thread.eventLocation && (
-                  <div className="flex items-start">
-                    <dt className="min-w-[5rem] font-medium text-slate-500 flex items-center">
-                      <MapPinIcon className="h-4 w-4 mr-1.5 text-slate-400" />
-                      会場
-                    </dt>
-                    <dd className="font-medium text-slate-800">{thread.eventLocation}</dd>
-                  </div>
-                )}
                 <div className="flex items-start pt-4 border-t border-slate-100">
                   <dt className="min-w-[5rem] font-medium text-slate-500 flex items-center">
                     <DocumentTextIcon className="h-4 w-4 mr-1.5 text-slate-400" />

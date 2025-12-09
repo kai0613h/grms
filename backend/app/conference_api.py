@@ -58,7 +58,6 @@ class ThreadCreateRequest(BaseModel):
     description: Optional[str] = None
     submission_deadline: Optional[datetime] = None
     event_datetime: Optional[datetime] = None
-    event_location: Optional[str] = Field(None, max_length=200)
     allowed_extensions: Optional[List[str]] = None
 
 
@@ -68,7 +67,6 @@ class ThreadResponse(BaseModel):
     description: Optional[str]
     submission_deadline: Optional[datetime]
     event_datetime: Optional[datetime]
-    event_location: Optional[str]
     allowed_extensions: Optional[List[str]] = None
     created_at: datetime
     updated_at: datetime
@@ -144,7 +142,6 @@ def _thread_to_response(thread: SubmissionThread, submission_count: int) -> Thre
         description=thread.description,
         submission_deadline=thread.submission_deadline,
         event_datetime=thread.event_datetime,
-        event_location=thread.event_location,
         allowed_extensions=thread.allowed_extensions,
         created_at=thread.created_at,
         updated_at=thread.updated_at,
@@ -191,7 +188,6 @@ async def create_thread(
         description=payload.description.strip() if payload.description else None,
         submission_deadline=payload.submission_deadline,
         event_datetime=payload.event_datetime,
-        event_location=payload.event_location.strip() if payload.event_location else None,
         allowed_extensions=payload.allowed_extensions,
     )
     session.add(thread)
