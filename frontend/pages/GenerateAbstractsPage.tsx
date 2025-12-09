@@ -1,7 +1,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { DocumentTextIcon, ArrowDownTrayIcon, ArrowPathIcon } from '../components/icons';
+import { DocumentTextIcon, ArrowDownTrayIcon, ArrowPathIcon, TrashIcon } from '../components/icons';
 import Button from '../components/Button';
 import Select from '../components/Select';
 import { SubmissionThreadSummary, ProgramRecord } from '../types';
@@ -10,6 +10,7 @@ import {
   fetchSubmissionThreads,
   getBookletDownloadUrl,
   getProgramDownloadUrl,
+  deleteProgram,
 } from '../utils/api';
 
 const dateFormatter = new Intl.DateTimeFormat('ja-JP', {
@@ -60,12 +61,30 @@ const GenerateAbstractsPage: React.FC = () => {
       setPrograms(data);
       if (data.length > 0 && !selectedProgramId) {
         setSelectedProgramId(data[0].id);
+      } else if (data.length === 0) {
+        setSelectedProgramId('');
       }
     } catch (err) {
       console.error(err);
       setError(err instanceof Error ? err.message : 'プログラム一覧の取得に失敗しました。');
     } finally {
       setIsLoadingPrograms(false);
+    }
+  };
+
+  const handleDeleteProgram = async () => {
+    if (!selectedProgramId) return;
+    if (!window.confirm('このプログラムを削除してもよろしいですか？')) {
+      return;
+    }
+
+    try {
+      await deleteProgram(selectedProgramId);
+      setSelectedProgramId('');
+      await loadPrograms(selectedThreadId || undefined);
+    } catch (err) {
+      console.error(err);
+      alert('プログラムの削除に失敗しました。');
     }
   };
 
@@ -163,6 +182,15 @@ const GenerateAbstractsPage: React.FC = () => {
                     抄録集PDF
                   </Button>
                 </a>
+                <Button
+                  variant="danger"
+                  className="shadow-none"
+                  onClick={handleDeleteProgram}
+                  title="このプログラムを削除"
+                >
+                  <TrashIcon className="h-4 w-4 mr-2" />
+                  削除
+                </Button>
               </div>
             </div>
             <div className="mt-4 pt-4 border-t border-indigo-200/50">
