@@ -69,11 +69,22 @@ const ThreadDetailPage: React.FC = () => {
     [thread],
   );
 
+  const allowedExtensions = useMemo(() => {
+    return thread?.allowedExtensions && thread.allowedExtensions.length > 0
+      ? thread.allowedExtensions
+      : ['.pdf']; // Default to PDF if not specified
+  }, [thread]);
+
+  const acceptAttribute = allowedExtensions.join(',');
+
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selected = event.target.files?.[0];
     if (selected) {
-      if (selected.type !== 'application/pdf') {
-        alert('PDFファイルを選択してください。');
+      const extension = '.' + selected.name.split('.').pop()?.toLowerCase();
+      if (!allowedExtensions.includes(extension)) {
+        alert(`許可されていないファイル形式です。\n許可されている形式: ${allowedExtensions.join(', ')}`);
+        // Clear input
+        event.target.value = '';
         return;
       }
       setFile(selected);
@@ -84,7 +95,7 @@ const ThreadDetailPage: React.FC = () => {
     event.preventDefault();
     if (!threadId) return;
     if (!file) {
-      alert('抄録PDFを選択してください。');
+      alert('ファイルを選択してください。');
       return;
     }
     if (!studentNumber.trim() || !studentName.trim() || !title.trim()) {
@@ -286,7 +297,7 @@ const ThreadDetailPage: React.FC = () => {
                   </div>
 
                   <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 border-dashed">
-                    <label className="block text-sm font-medium text-slate-700 mb-2">抄録PDF</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">提出ファイル</label>
                     <div className="flex items-center space-x-4">
                       <label className="cursor-pointer inline-flex items-center px-4 py-2 border border-slate-300 rounded-lg shadow-sm text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">
                         <CloudArrowUpIcon className="h-5 w-5 mr-2 text-slate-400" />
@@ -294,7 +305,7 @@ const ThreadDetailPage: React.FC = () => {
                         <input
                           id="file-upload"
                           type="file"
-                          accept="application/pdf"
+                          accept={acceptAttribute}
                           onChange={handleFileChange}
                           className="hidden"
                         />
@@ -303,7 +314,9 @@ const ThreadDetailPage: React.FC = () => {
                         {file ? file.name : 'ファイルが選択されていません'}
                       </span>
                     </div>
-                    <p className="text-xs text-slate-400 mt-2">PDF形式（最大10MB）をアップロードしてください。</p>
+                    <p className="text-xs text-slate-400 mt-2">
+                      許可された形式: {allowedExtensions.join(', ')}（最大10MB）
+                    </p>
                   </div>
 
                   <div className="text-right pt-2">

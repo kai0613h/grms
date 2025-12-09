@@ -59,6 +59,7 @@ class ThreadCreateRequest(BaseModel):
     submission_deadline: Optional[datetime] = None
     event_datetime: Optional[datetime] = None
     event_location: Optional[str] = Field(None, max_length=200)
+    allowed_extensions: Optional[List[str]] = None
 
 
 class ThreadResponse(BaseModel):
@@ -68,6 +69,7 @@ class ThreadResponse(BaseModel):
     submission_deadline: Optional[datetime]
     event_datetime: Optional[datetime]
     event_location: Optional[str]
+    allowed_extensions: Optional[List[str]] = None
     created_at: datetime
     updated_at: datetime
     submission_count: int = 0
@@ -143,6 +145,7 @@ def _thread_to_response(thread: SubmissionThread, submission_count: int) -> Thre
         submission_deadline=thread.submission_deadline,
         event_datetime=thread.event_datetime,
         event_location=thread.event_location,
+        allowed_extensions=thread.allowed_extensions,
         created_at=thread.created_at,
         updated_at=thread.updated_at,
         submission_count=submission_count,
@@ -189,6 +192,7 @@ async def create_thread(
         submission_deadline=payload.submission_deadline,
         event_datetime=payload.event_datetime,
         event_location=payload.event_location.strip() if payload.event_location else None,
+        allowed_extensions=payload.allowed_extensions,
     )
     session.add(thread)
     await session.commit()
@@ -269,6 +273,15 @@ async def create_submission(
 
     if laboratory not in LABORATORY_CHOICES:
         raise HTTPException(status_code=400, detail="無効な研究室が選択されました。")
+
+    if thread.allowed_extensions:
+        filename = pdf.filename.lower()
+        if not any(filename.endswith(ext.lower()) for ext in thread.allowed_extensions):
+            allowed_str = ", ".join(thread.allowed_extensions)
+            raise HTTPException(
+                status_code=400,
+                detail=f"許可されていないファイル形式です。許可されている形式: {allowed_str}",
+            )
 
     pdf_bytes = await pdf.read()
     if not pdf_bytes:

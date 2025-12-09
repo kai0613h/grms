@@ -42,6 +42,7 @@ class SubmissionThread(Base):
     submission_deadline = Column(DateTime(timezone=True), nullable=True)
     event_datetime = Column(DateTime(timezone=True), nullable=True)
     event_location = Column(String(200), nullable=True)
+    allowed_extensions = Column(JSONB, nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at = Column(
         DateTime(timezone=True),

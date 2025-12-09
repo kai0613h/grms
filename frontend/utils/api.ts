@@ -109,6 +109,7 @@ interface ThreadApiModel {
   submission_deadline?: string | null;
   event_datetime?: string | null;
   event_location?: string | null;
+  allowed_extensions?: string[] | null;
   created_at: string;
   updated_at: string;
   submission_count: number;
@@ -170,6 +171,7 @@ const mapThreadSummary = (thread: ThreadApiModel): SubmissionThreadSummary => ({
   submissionDeadline: toIsoString(thread.submission_deadline),
   eventDatetime: toIsoString(thread.event_datetime),
   eventLocation: thread.event_location ?? undefined,
+  allowedExtensions: thread.allowed_extensions ?? undefined,
   submissionCount: thread.submission_count ?? 0,
   createdAt: thread.created_at,
   updatedAt: thread.updated_at,
@@ -353,6 +355,7 @@ interface CreateThreadPayload {
   submissionDeadline?: string;
   eventDatetime?: string;
   eventLocation?: string;
+  allowedExtensions?: string[];
 }
 
 export const createSubmissionThread = async (payload: CreateThreadPayload): Promise<SubmissionThreadSummary> => {
@@ -367,6 +370,7 @@ export const createSubmissionThread = async (payload: CreateThreadPayload): Prom
       submission_deadline: payload.submissionDeadline,
       event_datetime: payload.eventDatetime,
       event_location: payload.eventLocation,
+      allowed_extensions: payload.allowedExtensions,
     }),
   });
   if (!response.ok) {

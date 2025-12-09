@@ -34,6 +34,7 @@ export interface SubmissionThreadSummary {
   submissionDeadline?: string;
   eventDatetime?: string;
   eventLocation?: string;
+  allowedExtensions?: string[];
   submissionCount: number;
   createdAt: string;
   updatedAt: string;

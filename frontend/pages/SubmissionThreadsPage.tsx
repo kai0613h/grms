@@ -32,6 +32,7 @@ const SubmissionThreadsPage: React.FC = () => {
   const [deadlineInput, setDeadlineInput] = useState('');
   const [eventDatetimeInput, setEventDatetimeInput] = useState('');
   const [eventLocation, setEventLocation] = useState('');
+  const [allowedExtensions, setAllowedExtensions] = useState<string[]>(['.pdf']);
 
   const loadThreads = async () => {
     setIsLoading(true);
@@ -51,10 +52,22 @@ const SubmissionThreadsPage: React.FC = () => {
     loadThreads();
   }, []);
 
+  const handleExtensionChange = (ext: string) => {
+    setAllowedExtensions(prev =>
+      prev.includes(ext)
+        ? prev.filter(e => e !== ext)
+        : [...prev, ext]
+    );
+  };
+
   const handleCreateThread = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!name.trim()) {
       alert('発表会名を入力してください。');
+      return;
+    }
+    if (allowedExtensions.length === 0) {
+      alert('少なくとも1つの提出形式を選択してください。');
       return;
     }
 
@@ -68,6 +81,7 @@ const SubmissionThreadsPage: React.FC = () => {
         submissionDeadline: deadlineInput ? new Date(deadlineInput).toISOString() : undefined,
         eventDatetime: eventDatetimeInput ? new Date(eventDatetimeInput).toISOString() : undefined,
         eventLocation: eventLocation.trim() || undefined,
+        allowedExtensions: allowedExtensions,
       });
 
       setName('');
@@ -75,6 +89,7 @@ const SubmissionThreadsPage: React.FC = () => {
       setDeadlineInput('');
       setEventDatetimeInput('');
       setEventLocation('');
+      setAllowedExtensions(['.pdf']);
       await loadThreads();
     } catch (err) {
       console.error(err);
@@ -161,6 +176,31 @@ const SubmissionThreadsPage: React.FC = () => {
                   onChange={(event) => setEventLocation(event.target.value)}
                   icon={<MapPinIcon className="h-5 w-5 text-slate-400" />}
                 />
+                
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">提出形式</label>
+                  <div className="flex space-x-4">
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={allowedExtensions.includes('.pdf')}
+                        onChange={() => handleExtensionChange('.pdf')}
+                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <span className="text-sm text-slate-700">PDF (.pdf)</span>
+                    </label>
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={allowedExtensions.includes('.pptx')}
+                        onChange={() => handleExtensionChange('.pptx')}
+                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <span className="text-sm text-slate-700">PowerPoint (.pptx)</span>
+                    </label>
+                  </div>
+                </div>
+
                 <div className="pt-2">
                   <Button type="submit" variant="primary" disabled={isCreating} className="w-full justify-center shadow-lg shadow-indigo-500/20">
                     {isCreating ? '作成中...' : 'スレッドを作成'}
@@ -245,10 +285,16 @@ const SubmissionThreadsPage: React.FC = () => {
                         </div>
                       )}
                       {thread.eventLocation && (
-                        <div className="flex items-center sm:col-span-2">
+                        <div className="flex items-center">
                           <MapPinIcon className="h-4 w-4 mr-1.5 text-slate-400" />
                           <span className="font-medium mr-1.5">会場:</span>
                           <span className="text-slate-700">{thread.eventLocation}</span>
+                        </div>
+                      )}
+                      {thread.allowedExtensions && thread.allowedExtensions.length > 0 && (
+                        <div className="flex items-center sm:col-span-2">
+                          <span className="font-medium mr-1.5">形式:</span>
+                          <span className="text-slate-700">{thread.allowedExtensions.join(', ')}</span>
                         </div>
                       )}
                     </div>
