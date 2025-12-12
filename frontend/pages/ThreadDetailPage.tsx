@@ -2,8 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import Input from '../components/Input';
 import Button from '../components/Button';
-import { LABORATORY_OPTIONS } from '../constants';
-import { SubmissionThreadDetail, ThreadSubmission } from '../types';
+import { SubmissionThreadDetail, ThreadSubmission, Laboratory } from '../types';
 import {
   CalendarIcon,
   MapPinIcon,
@@ -18,6 +17,7 @@ import {
   getSubmissionDownloadUrl,
   submitFiles,
   deleteSubmission,
+  fetchLaboratories,
 } from '../utils/api';
 
 const detailFormatter = new Intl.DateTimeFormat('ja-JP', {
@@ -38,7 +38,8 @@ const ThreadDetailPage: React.FC = () => {
 
   const [studentNumber, setStudentNumber] = useState('');
   const [studentName, setStudentName] = useState('');
-  const [laboratory, setLaboratory] = useState(LABORATORY_OPTIONS[0]?.value ?? '');
+  const [laboratory, setLaboratory] = useState('');
+  const [laboratories, setLaboratories] = useState<Laboratory[]>([]);
   const [title, setTitle] = useState('');
   
   const [abstractFile, setAbstractFile] = useState<File | null>(null);
@@ -66,6 +67,24 @@ const ThreadDetailPage: React.FC = () => {
     loadDetail();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [threadId]);
+
+  const loadLaboratories = async () => {
+    try {
+      const labs = await fetchLaboratories();
+      setLaboratories(labs);
+      if (labs.length > 0) {
+        setLaboratory((prev) => prev || labs[0].name);
+      }
+    } catch (err) {
+      console.error(err);
+      setLaboratories([]);
+    }
+  };
+
+  useEffect(() => {
+    loadLaboratories();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const submissions = useMemo<ThreadSubmission[]>(
     () => (thread ? thread.submissions.slice().sort((a, b) => a.submittedAt.localeCompare(b.submittedAt)) : []),
@@ -127,7 +146,7 @@ const ThreadDetailPage: React.FC = () => {
 
       setStudentNumber('');
       setStudentName('');
-      setLaboratory(LABORATORY_OPTIONS[0]?.value ?? '');
+      setLaboratory(laboratories[0]?.name ?? '');
       setTitle('');
       setAbstractFile(null);
       setPaperFile(null);
@@ -262,9 +281,14 @@ const ThreadDetailPage: React.FC = () => {
                           value={laboratory}
                           onChange={(event) => setLaboratory(event.target.value)}
                         >
-                          {LABORATORY_OPTIONS.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
+                          {laboratories.length === 0 && (
+                            <option value="" disabled>
+                              研究室を読み込み中...
+                            </option>
+                          )}
+                          {laboratories.map((lab) => (
+                            <option key={lab.id} value={lab.name}>
+                              {lab.name}
                             </option>
                           ))}
                         </select>

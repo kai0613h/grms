@@ -78,6 +78,17 @@ const SubmissionStatusPage: React.FC = () => {
     });
   }, [threadDetail]);
 
+  const laboratorySummary = useMemo(() => {
+    if (!threadDetail) return [];
+    const counts: Record<string, number> = {};
+    threadDetail.submissions.forEach((sub) => {
+      counts[sub.laboratory] = (counts[sub.laboratory] ?? 0) + 1;
+    });
+    return Object.entries(counts)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([lab, count]) => ({ lab, count }));
+  }, [threadDetail]);
+
   const renderStatusIcon = (filename: string | undefined, hasType: boolean, downloadUrl?: string) => {
     if (!hasType) return <span className="text-slate-300">-</span>;
     if (filename) {
@@ -137,9 +148,23 @@ const SubmissionStatusPage: React.FC = () => {
       {threadDetail && (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
             <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-                <h2 className="text-lg font-bold text-slate-800">
-                    提出者一覧 ({sortedSubmissions.length}名)
-                </h2>
+                <div>
+                  <h2 className="text-lg font-bold text-slate-800">
+                      提出者一覧 ({sortedSubmissions.length}名)
+                  </h2>
+                  {laboratorySummary.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
+                      {laboratorySummary.map((item) => (
+                        <span
+                          key={item.lab}
+                          className="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-1 font-medium text-indigo-700"
+                        >
+                          {item.lab}: {item.count}名
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <div className="text-sm text-slate-500">
                     最終更新: {new Date().toLocaleTimeString()}
                 </div>

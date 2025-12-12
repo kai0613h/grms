@@ -11,6 +11,7 @@ import CreateProgramPage from './pages/CreateProgramPage';
 import GenerateAbstractsPage from './pages/GenerateAbstractsPage';
 import GenerateContactTimePage from './pages/GenerateContactTimePage';
 import SubmissionStatusPage from './pages/SubmissionStatusPage';
+import LaboratoriesPage from './pages/LaboratoriesPage';
 
 const App: React.FC = () => {
   return (
@@ -23,6 +24,7 @@ const App: React.FC = () => {
           <Route path="/file/:fileId" element={<FileDetailsPage />} />
           <Route path="/threads" element={<SubmissionThreadsPage />} />
           <Route path="/threads/:threadId" element={<ThreadDetailPage />} />
+          <Route path="/laboratories" element={<LaboratoriesPage />} />
           <Route path="/status" element={<SubmissionStatusPage />} />
           <Route path="/create-program" element={<CreateProgramPage />} />
           <Route path="/generate-abstracts" element={<GenerateAbstractsPage />} />

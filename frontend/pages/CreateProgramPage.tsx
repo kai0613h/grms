@@ -14,11 +14,13 @@ import {
 import {
   ProgramRecord,
   ProgramSessionDefinition,
+  ProgramPreview,
   SubmissionThreadDetail,
   SubmissionThreadSummary,
 } from '../types';
 import {
   createProgram,
+  createProgramPreview,
   fetchSubmissionThreadDetail,
   fetchSubmissionThreads,
   getBookletDownloadUrl,
@@ -56,8 +58,10 @@ const CreateProgramPage: React.FC = () => {
   const [isLoadingThreads, setIsLoadingThreads] = useState(false);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [generatedProgram, setGeneratedProgram] = useState<ProgramRecord | null>(null);
+  const [previewProgram, setPreviewProgram] = useState<ProgramPreview | null>(null);
 
   const [eventDetails, setEventDetails] = useState({
     courseName: '2025年度 情報システム工学コース',
@@ -68,6 +72,7 @@ const CreateProgramPage: React.FC = () => {
   });
   const [presentationDuration, setPresentationDuration] = useState(15);
   const [sessions, setSessions] = useState<ProgramSessionDefinition[]>(initialSessions);
+  const [selectedLaboratoryIds, setSelectedLaboratoryIds] = useState<number[]>([]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -106,6 +111,7 @@ const CreateProgramPage: React.FC = () => {
       const detail = await fetchSubmissionThreadDetail(threadId);
       setThreadDetail(detail);
       setGeneratedProgram(null);
+      setPreviewProgram(null);
     } catch (err) {
       console.error(err);
       setError(err instanceof Error ? err.message : '提出詳細の取得に失敗しました。');
@@ -152,6 +158,28 @@ const CreateProgramPage: React.FC = () => {
     return Object.entries(groups).map(([lab, count]) => ({ lab, count }));
   }, [threadDetail]);
 
+  const laboratoriesInThread = useMemo(() => {
+    if (!threadDetail) return [];
+    const map = new Map<number, { id: number; name: string; count: number }>();
+    threadDetail.submissions.forEach((sub) => {
+      const existing = map.get(sub.laboratoryId);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        map.set(sub.laboratoryId, { id: sub.laboratoryId, name: sub.laboratory, count: 1 });
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [threadDetail]);
+
+  useEffect(() => {
+    if (laboratoriesInThread.length > 0) {
+      setSelectedLaboratoryIds(laboratoriesInThread.map((lab) => lab.id));
+    } else {
+      setSelectedLaboratoryIds([]);
+    }
+  }, [laboratoriesInThread]);
+
   const handleGenerateProgram = async () => {
     if (!selectedThreadId) {
       alert('提出スレッドを選択してください。');
@@ -159,6 +187,10 @@ const CreateProgramPage: React.FC = () => {
     }
     if (!threadDetail || threadDetail.submissions.length === 0) {
       alert('選択したスレッドに抄録が登録されていません。');
+      return;
+    }
+    if (selectedLaboratoryIds.length === 0) {
+      alert('対象とする研究室を1つ以上選択してください。');
       return;
     }
     if (presentationDuration <= 0) {
@@ -169,6 +201,39 @@ const CreateProgramPage: React.FC = () => {
     setIsGenerating(true);
     setError(null);
     try {
+      const preview = await createProgramPreview({
+        threadId: selectedThreadId,
+        courseName: eventDetails.courseName,
+        eventName: eventDetails.eventName,
+        eventTheme: eventDetails.eventTheme,
+        dateTime: eventDetails.dateTime,
+        venue: eventDetails.venue,
+        laboratoryIds: selectedLaboratoryIds,
+        presentationDurationMinutes: presentationDuration,
+        sessions,
+        title: `${eventDetails.eventName} プログラム`,
+        description: threadDetail.description,
+      });
+      setPreviewProgram(preview);
+      setGeneratedProgram(null);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (err) {
+      console.error(err);
+      setError(err instanceof Error ? err.message : 'プログラムの生成に失敗しました。');
+      setPreviewProgram(null);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleExportPdf = async () => {
+    if (!previewProgram) {
+      alert('先にプログラムを生成してプレビューを確認してください。');
+      return;
+    }
+    setIsExportingPdf(true);
+    setError(null);
+    try {
       const program = await createProgram({
         threadId: selectedThreadId,
         courseName: eventDetails.courseName,
@@ -176,20 +241,20 @@ const CreateProgramPage: React.FC = () => {
         eventTheme: eventDetails.eventTheme,
         dateTime: eventDetails.dateTime,
         venue: eventDetails.venue,
+        laboratoryIds: selectedLaboratoryIds,
         presentationDurationMinutes: presentationDuration,
         sessions,
         title: `${eventDetails.eventName} プログラム`,
-        description: threadDetail.description,
+        description: threadDetail?.description,
       });
       setGeneratedProgram(program);
-      // Scroll to success message
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
       console.error(err);
-      setError(err instanceof Error ? err.message : 'プログラムの生成に失敗しました。');
+      setError(err instanceof Error ? err.message : 'PDF出力に失敗しました。');
       setGeneratedProgram(null);
     } finally {
-      setIsGenerating(false);
+      setIsExportingPdf(false);
     }
   };
 
@@ -204,7 +269,7 @@ const CreateProgramPage: React.FC = () => {
     <div className="max-w-5xl mx-auto">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-slate-900 tracking-tight">発表プログラム生成</h1>
-        <p className="mt-2 text-slate-500">抄録提出スレッドからプログラムPDFを自動生成します</p>
+        <p className="mt-2 text-slate-500">抄録提出スレッドからプログラムを生成し、UIで確認後にPDFを出力します</p>
       </div>
 
       {error && (
@@ -220,7 +285,7 @@ const CreateProgramPage: React.FC = () => {
               <DocumentTextIcon className="h-6 w-6 text-green-600" />
             </div>
             <div className="ml-3 w-full">
-              <h3 className="text-lg font-medium text-green-800">プログラム生成が完了しました</h3>
+              <h3 className="text-lg font-medium text-green-800">PDF出力が完了しました</h3>
               <div className="mt-2 text-sm text-green-700">
                 <p>ダウンロードリンクからプログラムPDFと抄録集PDFを保存できます。</p>
               </div>
@@ -290,24 +355,51 @@ const CreateProgramPage: React.FC = () => {
           {threadDetail && (
             <div className="mt-6 p-4 bg-slate-50 rounded-xl border border-slate-200">
               <h3 className="font-bold text-slate-800 mb-2">{threadDetail.name}</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm text-slate-600">
-                {threadDetail.submissionDeadline && (
-                  <div className="flex items-center">
-                    <CalendarIcon className="h-4 w-4 mr-1.5 text-slate-400" />
-                    <span className="font-medium mr-1.5">提出期限:</span>
-                    {dateFormatter.format(new Date(threadDetail.submissionDeadline))} {timeFormatter.format(new Date(threadDetail.submissionDeadline))}
-                  </div>
-                )}
-                {submissionSummary.length > 0 && (
-                  <div className="sm:col-span-2">
-                    <span className="font-medium mr-1.5">研究室別提出数:</span>
-                    {submissionSummary.map((item) => `${item.lab} ${item.count}件`).join(' / ')}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </section>
+	              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm text-slate-600">
+	                {threadDetail.submissionDeadline && (
+	                  <div className="flex items-center">
+	                    <CalendarIcon className="h-4 w-4 mr-1.5 text-slate-400" />
+	                    <span className="font-medium mr-1.5">提出期限:</span>
+	                    {dateFormatter.format(new Date(threadDetail.submissionDeadline))} {timeFormatter.format(new Date(threadDetail.submissionDeadline))}
+	                  </div>
+	                )}
+	                {submissionSummary.length > 0 && (
+	                  <div className="sm:col-span-2">
+	                    <span className="font-medium mr-1.5">研究室別提出数:</span>
+	                    {submissionSummary.map((item) => `${item.lab} ${item.count}件`).join(' / ')}
+	                  </div>
+	                )}
+	              </div>
+	              {laboratoriesInThread.length > 0 && (
+	                <div className="mt-4">
+	                  <div className="text-sm font-medium text-slate-700 mb-2">プログラム対象研究室（研究室グループ）</div>
+	                  <div className="flex flex-wrap gap-2">
+	                    {laboratoriesInThread.map((lab) => (
+	                      <label
+	                        key={lab.id}
+	                        className="inline-flex items-center gap-2 rounded-lg bg-white border border-slate-200 px-3 py-1.5 text-sm text-slate-700"
+	                      >
+	                        <input
+	                          type="checkbox"
+	                          className="h-4 w-4 text-indigo-600 border-slate-300 rounded"
+	                          checked={selectedLaboratoryIds.includes(lab.id)}
+	                          onChange={(e) => {
+	                            setSelectedLaboratoryIds((prev) =>
+	                              e.target.checked
+	                                ? Array.from(new Set([...prev, lab.id]))
+	                                : prev.filter((id) => id !== lab.id),
+	                            );
+	                          }}
+	                        />
+	                        <span>{lab.name} ({lab.count}件)</span>
+	                      </label>
+	                    ))}
+	                  </div>
+	                </div>
+	              )}
+	            </div>
+	          )}
+	        </section>
 
         {/* Event Details */}
         <section className="bg-white p-6 sm:p-8 rounded-2xl shadow-sm border border-slate-200">
@@ -463,11 +555,75 @@ const CreateProgramPage: React.FC = () => {
             ) : (
               <>
                 <DocumentTextIcon className="h-5 w-5 mr-2" />
-                プログラムPDFを生成
+                プログラムを生成（プレビュー）
               </>
             )}
           </Button>
         </div>
+
+        {previewProgram && (
+          <section className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mt-10 animate-fade-in">
+            <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-bold text-slate-800">プログラムプレビュー</h3>
+                <p className="text-sm text-slate-500">
+                  {String(previewProgram.metadata.eventName ?? '')} / {String(previewProgram.metadata.dateTime ?? '')}
+                </p>
+              </div>
+              <Button variant="primary" onClick={handleExportPdf} disabled={isExportingPdf}>
+                {isExportingPdf ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    PDF出力中...
+                  </>
+                ) : (
+                  <>
+                    <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
+                    PDFを出力
+                  </>
+                )}
+              </Button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-200">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">順番</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">セッション</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">時間</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">表題</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">学生</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">研究室</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-slate-200">
+                  {(previewProgram.presentationOrder as any[])
+                    .slice()
+                    .sort((a, b) => Number(a.global_order ?? 0) - Number(b.global_order ?? 0))
+                    .map((entry, index) => (
+                      <tr key={`${entry.submission_id}-${index}`} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
+                          {entry.global_order}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
+                          {Number(entry.session_index ?? 0) + 1}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
+                          {entry.session_start_time} - {entry.session_end_time}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">{entry.title}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
+                          {entry.student_number} / {entry.student_name}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{entry.laboratory}</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
 
         {/* Submissions List Preview */}
         {threadDetail && (

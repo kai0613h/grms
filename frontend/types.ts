@@ -81,6 +81,18 @@ export interface ProgramRecord {
   updatedAt: string;
 }
 
+export interface ProgramPreview {
+  metadata: Record<string, unknown>;
+  sessions: Array<Record<string, unknown>>;
+  presentationOrder: Array<Record<string, unknown>>;
+}
+
+export interface Laboratory {
+  id: number;
+  name: string;
+  year?: number;
+}
+
 export enum Page {
   Search = '/search',
   Upload = '/upload',

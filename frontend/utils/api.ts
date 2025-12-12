@@ -5,6 +5,8 @@ import {
   ThreadSubmission,
   ProgramSessionDefinition,
   ProgramRecord,
+  Laboratory,
+  ProgramPreview,
 } from '../types';
 
 const resolveBaseUrl = (): string => {
@@ -148,6 +150,18 @@ interface ProgramRecordApiModel {
   updated_at: string;
 }
 
+interface ProgramPreviewApiModel {
+  metadata: Record<string, unknown>;
+  sessions: Array<Record<string, unknown>>;
+  presentation_order: Array<Record<string, unknown>>;
+}
+
+interface LaboratoryApiModel {
+  id: number;
+  name: string;
+  year?: number | null;
+}
+
 const toIsoString = (value?: string | null): string | undefined => {
   if (!value) return undefined;
   const dt = toDate(value);
@@ -199,6 +213,18 @@ const mapProgramRecord = (program: ProgramRecordApiModel): ProgramRecord => ({
   presentationOrder: program.presentation_order ?? [],
   createdAt: program.created_at,
   updatedAt: program.updated_at,
+});
+
+const mapProgramPreview = (program: ProgramPreviewApiModel): ProgramPreview => ({
+  metadata: (program.metadata ?? {}) as Record<string, unknown>,
+  sessions: program.sessions ?? [],
+  presentationOrder: program.presentation_order ?? [],
+});
+
+const mapLaboratory = (lab: LaboratoryApiModel): Laboratory => ({
+  id: lab.id,
+  name: lab.name,
+  year: lab.year ?? undefined,
 });
 
 const extractErrorMessage = async (response: Response): Promise<string> => {
@@ -465,6 +491,7 @@ interface CreateProgramPayload {
   eventTheme: string;
   dateTime: string;
   venue: string;
+  laboratoryIds?: number[];
   presentationDurationMinutes: number;
   sessions: ProgramSessionDefinition[];
   title?: string;
@@ -484,6 +511,7 @@ export const createProgram = async (payload: CreateProgramPayload): Promise<Prog
       eventTheme: payload.eventTheme,
       dateTime: payload.dateTime,
       venue: payload.venue,
+      laboratoryIds: payload.laboratoryIds,
       presentationDurationMinutes: payload.presentationDurationMinutes,
       sessions: payload.sessions,
       title: payload.title,
@@ -499,6 +527,35 @@ export const createProgram = async (payload: CreateProgramPayload): Promise<Prog
   return mapProgramRecord(data);
 };
 
+export const createProgramPreview = async (payload: CreateProgramPayload): Promise<ProgramPreview> => {
+  const response = await fetch(`${API_BASE_URL}/conference/programs/preview`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      thread_id: payload.threadId,
+      courseName: payload.courseName,
+      eventName: payload.eventName,
+      eventTheme: payload.eventTheme,
+      dateTime: payload.dateTime,
+      venue: payload.venue,
+      laboratoryIds: payload.laboratoryIds,
+      presentationDurationMinutes: payload.presentationDurationMinutes,
+      sessions: payload.sessions,
+      title: payload.title,
+      description: payload.description,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(await extractErrorMessage(response));
+  }
+
+  const data: ProgramPreviewApiModel = await response.json();
+  return mapProgramPreview(data);
+};
+
 export const fetchPrograms = async (threadId?: string): Promise<ProgramRecord[]> => {
   const query = threadId ? `?thread_id=${encodeURIComponent(threadId)}` : '';
   const response = await fetch(`${API_BASE_URL}/conference/programs${query}`);
@@ -511,6 +568,38 @@ export const fetchPrograms = async (threadId?: string): Promise<ProgramRecord[]>
 
 export const deleteProgram = async (programId: string): Promise<void> => {
   const response = await fetch(`${API_BASE_URL}/conference/programs/${programId}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    throw new Error(await extractErrorMessage(response));
+  }
+};
+
+export const fetchLaboratories = async (year?: number): Promise<Laboratory[]> => {
+  const query = year !== undefined ? `?year=${encodeURIComponent(String(year))}` : '';
+  const response = await fetch(`${API_BASE_URL}/conference/laboratories${query}`);
+  if (!response.ok) {
+    throw new Error(await extractErrorMessage(response));
+  }
+  const payload: LaboratoryApiModel[] = await response.json();
+  return payload.map(mapLaboratory);
+};
+
+export const createLaboratory = async (name: string, year?: number): Promise<Laboratory> => {
+  const response = await fetch(`${API_BASE_URL}/conference/laboratories`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, year }),
+  });
+  if (!response.ok) {
+    throw new Error(await extractErrorMessage(response));
+  }
+  const payload: LaboratoryApiModel = await response.json();
+  return mapLaboratory(payload);
+};
+
+export const deleteLaboratory = async (laboratoryId: number): Promise<void> => {
+  const response = await fetch(`${API_BASE_URL}/conference/laboratories/${laboratoryId}`, {
     method: 'DELETE',
   });
   if (!response.ok) {

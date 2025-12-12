@@ -11,6 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db_session
+from models.notion import Laboratory as LaboratoryModel
 from models.paper import AbstractSubmission, ProgramRecord, SubmissionThread
 from pdf_generator import (
     Presentation,
@@ -25,14 +26,26 @@ from pypdf import PdfReader, PdfWriter
 conference_router = APIRouter(prefix="/conference", tags=["conference"])
 
 
-LABORATORY_CHOICES: Dict[str, int] = {
-    "黒木研究室": 1,
-    "小林研究室": 2,
-    "大塚研究室": 3,
-    "田中研究室": 4,
-}
+DEFAULT_LABORATORIES: List[str] = [
+    "黒木研究室",
+    "小林研究室",
+    "大塚研究室",
+    "田中研究室",
+]
 
 MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB
+
+
+async def _ensure_default_laboratories(session: AsyncSession) -> None:
+    """Seed default laboratories if none exist (backward compatibility)."""
+    count_stmt = select(func.count(LaboratoryModel.id))
+    result = await session.execute(count_stmt)
+    count = result.scalar_one() or 0
+    if count > 0:
+        return
+    for name in DEFAULT_LABORATORIES:
+        session.add(LaboratoryModel(laboratory_name=name))
+    await session.commit()
 
 
 def _parse_datetime(value: Optional[str]) -> Optional[datetime]:
@@ -121,6 +134,7 @@ class ProgramCreateRequest(BaseModel):
     eventTheme: str
     dateTime: str
     venue: str
+    laboratoryIds: Optional[List[int]] = None
     presentationDurationMinutes: int = 15
     sessions: List[ProgramSessionInput]
     title: Optional[str] = None
@@ -143,6 +157,23 @@ class ProgramResponse(BaseModel):
     presentation_order: List[dict]
     created_at: datetime
     updated_at: datetime
+
+
+class ProgramPreviewResponse(BaseModel):
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    sessions: List[dict] = Field(default_factory=list)
+    presentation_order: List[dict] = Field(default_factory=list)
+
+
+class LaboratoryCreateRequest(BaseModel):
+    name: str = Field(..., max_length=120)
+    year: Optional[int] = None
+
+
+class LaboratoryResponse(BaseModel):
+    id: int
+    name: str
+    year: Optional[int] = None
 
 
 def _thread_to_response(thread: SubmissionThread, submission_count: int) -> ThreadResponse:
@@ -190,6 +221,61 @@ def _program_to_response(record: ProgramRecord) -> ProgramResponse:
         created_at=record.created_at,
         updated_at=record.updated_at,
     )
+
+
+@conference_router.get("/laboratories", response_model=List[LaboratoryResponse])
+async def list_laboratories(
+    year: Optional[int] = Query(None, description="年度でフィルター"),
+    session: AsyncSession = Depends(get_db_session),
+) -> List[LaboratoryResponse]:
+    await _ensure_default_laboratories(session)
+    stmt = select(LaboratoryModel).order_by(LaboratoryModel.id.asc())
+    if year is not None:
+        stmt = stmt.where(LaboratoryModel.year == year)
+    result = await session.execute(stmt)
+    labs = result.scalars().all()
+    return [LaboratoryResponse(id=lab.id, name=lab.laboratory_name, year=lab.year) for lab in labs]
+
+
+@conference_router.post("/laboratories", response_model=LaboratoryResponse, status_code=201)
+async def create_laboratory(
+    payload: LaboratoryCreateRequest,
+    session: AsyncSession = Depends(get_db_session),
+) -> LaboratoryResponse:
+    await _ensure_default_laboratories(session)
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="研究室名を入力してください。")
+    existing_stmt = select(LaboratoryModel).where(LaboratoryModel.laboratory_name == name)
+    existing_result = await session.execute(existing_stmt)
+    if existing_result.scalars().first():
+        raise HTTPException(status_code=409, detail="同名の研究室が既に存在します。")
+    lab = LaboratoryModel(laboratory_name=name, year=payload.year)
+    session.add(lab)
+    await session.commit()
+    await session.refresh(lab)
+    return LaboratoryResponse(id=lab.id, name=lab.laboratory_name, year=lab.year)
+
+
+@conference_router.delete("/laboratories/{laboratory_id}", status_code=204)
+async def delete_laboratory(
+    laboratory_id: int,
+    session: AsyncSession = Depends(get_db_session),
+):
+    await _ensure_default_laboratories(session)
+    lab_result = await session.execute(select(LaboratoryModel).where(LaboratoryModel.id == laboratory_id))
+    lab = lab_result.scalars().first()
+    if not lab:
+        raise HTTPException(status_code=404, detail="指定された研究室が見つかりません。")
+
+    used_stmt = select(func.count(AbstractSubmission.id)).where(AbstractSubmission.laboratory_id == laboratory_id)
+    used_result = await session.execute(used_stmt)
+    if (used_result.scalar_one() or 0) > 0:
+        raise HTTPException(status_code=409, detail="この研究室は提出データで使用されているため削除できません。")
+
+    await session.delete(lab)
+    await session.commit()
+    return Response(status_code=204)
 
 
 @conference_router.post("/threads", response_model=ThreadResponse)
@@ -287,7 +373,11 @@ async def create_submission(
     if not thread:
         raise HTTPException(status_code=404, detail="指定された提出スレッドが見つかりません。")
 
-    if laboratory not in LABORATORY_CHOICES:
+    await _ensure_default_laboratories(session)
+    lab_stmt = select(LaboratoryModel).where(LaboratoryModel.laboratory_name == laboratory)
+    lab_result = await session.execute(lab_stmt)
+    lab = lab_result.scalars().first()
+    if not lab:
         raise HTTPException(status_code=400, detail="無効な研究室が選択されました。")
 
     # 2. Check Existing Submission (Upsert Logic)
@@ -306,7 +396,7 @@ async def create_submission(
             student_number=student_number.strip(),
             student_name=student_name.strip(),
             laboratory=laboratory,
-            laboratory_id=LABORATORY_CHOICES[laboratory],
+            laboratory_id=lab.id,
             title=title.strip(),
             # Initialize fields to ensure they are not null if DB requires it, 
             # though our schema allows nulls for files.
@@ -316,7 +406,7 @@ async def create_submission(
         # Update metadata
         submission.student_name = student_name.strip()
         submission.laboratory = laboratory
-        submission.laboratory_id = LABORATORY_CHOICES[laboratory]
+        submission.laboratory_id = lab.id
         submission.title = title.strip()
         # Update timestamp
         submission.submitted_at = datetime.now()
@@ -534,35 +624,19 @@ def _assign_presentations(
     return session_assignments
 
 
-@conference_router.post("/programs", response_model=ProgramResponse)
-async def create_program(
-    payload: ProgramCreateRequest,
-    session: AsyncSession = Depends(get_db_session),
-) -> ProgramResponse:
-    thread_stmt = select(SubmissionThread).where(SubmissionThread.id == payload.thread_id)
-    thread_result = await session.execute(thread_stmt)
-    thread = thread_result.scalars().first()
-    if not thread:
-        raise HTTPException(status_code=404, detail="指定された提出スレッドが見つかりません。")
-
-    submissions_stmt = (
-        select(AbstractSubmission)
-        .where(AbstractSubmission.thread_id == payload.thread_id)
-        .order_by(AbstractSubmission.submitted_at.asc())
-    )
-    submissions_result = await session.execute(submissions_stmt)
-    submissions = submissions_result.scalars().all()
-    if not submissions:
-        raise HTTPException(status_code=400, detail="この提出スレッドには抄録が登録されていません。")
-
-    session_assignments = _assign_presentations(submissions, payload.sessions, payload.presentationDurationMinutes)
+def _build_schedule_and_order(
+    submissions: List[AbstractSubmission],
+    sessions: List[ProgramSessionInput],
+    presentation_duration: int,
+) -> tuple[List[ScheduleSession], List[dict]]:
+    session_assignments = _assign_presentations(submissions, sessions, presentation_duration)
 
     schedule_sessions: List[ScheduleSession] = []
     presentation_order: List[dict] = []
     presentation_counter = 1
 
     assignment_index = 0
-    for session_info in payload.sessions:
+    for session_info in sessions:
         if session_info.type == "break":
             schedule_sessions.append(
                 ScheduleSession(
@@ -621,6 +695,110 @@ async def create_program(
             )
         )
 
+    return schedule_sessions, presentation_order
+
+
+def _serialize_sessions(
+    schedule_sessions: List[ScheduleSession],
+    presentation_order: List[dict],
+) -> List[dict]:
+    return [
+        {
+            "type": session_obj.type,
+            "startTime": session_obj.startTime,
+            "endTime": session_obj.endTime,
+            "chair": session_obj.chair,
+            "timekeeper": session_obj.timekeeper,
+            "presentations": [
+                {
+                    "submission_id": order_entry["submission_id"],
+                    "student_name": order_entry["student_name"],
+                    "title": order_entry["title"],
+                    "laboratory": order_entry["laboratory"],
+                    "laboratory_id": order_entry["laboratory_id"],
+                    "global_order": order_entry["global_order"],
+                    "order_in_session": order_entry["order_in_session"],
+                }
+                for order_entry in presentation_order
+                if order_entry["session_index"] == idx and session_obj.type == "session"
+            ],
+        }
+        for idx, session_obj in enumerate(schedule_sessions)
+    ]
+
+
+@conference_router.post("/programs/preview", response_model=ProgramPreviewResponse)
+async def preview_program(
+    payload: ProgramCreateRequest,
+    session: AsyncSession = Depends(get_db_session),
+) -> ProgramPreviewResponse:
+    thread_stmt = select(SubmissionThread).where(SubmissionThread.id == payload.thread_id)
+    thread_result = await session.execute(thread_stmt)
+    if not thread_result.scalars().first():
+        raise HTTPException(status_code=404, detail="指定された提出スレッドが見つかりません。")
+
+    submissions_stmt = (
+        select(AbstractSubmission)
+        .where(AbstractSubmission.thread_id == payload.thread_id)
+        .order_by(AbstractSubmission.submitted_at.asc())
+    )
+    submissions_result = await session.execute(submissions_stmt)
+    submissions = submissions_result.scalars().all()
+    if payload.laboratoryIds:
+        submissions = [sub for sub in submissions if sub.laboratory_id in payload.laboratoryIds]
+    if not submissions:
+        raise HTTPException(status_code=400, detail="選択した研究室グループに該当する抄録が登録されていません。")
+
+    schedule_sessions, presentation_order = _build_schedule_and_order(
+        submissions,
+        payload.sessions,
+        payload.presentationDurationMinutes,
+    )
+
+    return ProgramPreviewResponse(
+        metadata={
+            "courseName": payload.courseName,
+            "eventName": payload.eventName,
+            "eventTheme": payload.eventTheme,
+            "dateTime": payload.dateTime,
+            "venue": payload.venue,
+            "laboratoryIds": payload.laboratoryIds or [],
+            "presentationDurationMinutes": payload.presentationDurationMinutes,
+        },
+        sessions=_serialize_sessions(schedule_sessions, presentation_order),
+        presentation_order=presentation_order,
+    )
+
+
+@conference_router.post("/programs", response_model=ProgramResponse)
+async def create_program(
+    payload: ProgramCreateRequest,
+    session: AsyncSession = Depends(get_db_session),
+) -> ProgramResponse:
+    thread_stmt = select(SubmissionThread).where(SubmissionThread.id == payload.thread_id)
+    thread_result = await session.execute(thread_stmt)
+    thread = thread_result.scalars().first()
+    if not thread:
+        raise HTTPException(status_code=404, detail="指定された提出スレッドが見つかりません。")
+
+    submissions_stmt = (
+        select(AbstractSubmission)
+        .where(AbstractSubmission.thread_id == payload.thread_id)
+        .order_by(AbstractSubmission.submitted_at.asc())
+    )
+    submissions_result = await session.execute(submissions_stmt)
+    submissions = submissions_result.scalars().all()
+    if payload.laboratoryIds:
+        submissions = [sub for sub in submissions if sub.laboratory_id in payload.laboratoryIds]
+    if not submissions:
+        raise HTTPException(status_code=400, detail="選択した研究室グループに該当する抄録が登録されていません。")
+
+    schedule_sessions, presentation_order = _build_schedule_and_order(
+        submissions,
+        payload.sessions,
+        payload.presentationDurationMinutes,
+    )
+
     schedule_data = ScheduleData(
         courseName=payload.courseName,
         eventName=payload.eventName,
@@ -643,31 +821,10 @@ async def create_program(
             "eventTheme": payload.eventTheme,
             "dateTime": payload.dateTime,
             "venue": payload.venue,
+            "laboratoryIds": payload.laboratoryIds or [],
             "presentationDurationMinutes": payload.presentationDurationMinutes,
         },
-        sessions=[
-            {
-                "type": session_obj.type,
-                "startTime": session_obj.startTime,
-                "endTime": session_obj.endTime,
-                "chair": session_obj.chair,
-                "timekeeper": session_obj.timekeeper,
-                "presentations": [
-                    {
-                        "submission_id": order_entry["submission_id"],
-                        "student_name": order_entry["student_name"],
-                        "title": order_entry["title"],
-                        "laboratory": order_entry["laboratory"],
-                        "laboratory_id": order_entry["laboratory_id"],
-                        "global_order": order_entry["global_order"],
-                        "order_in_session": order_entry["order_in_session"],
-                    }
-                    for order_entry in presentation_order
-                    if order_entry["session_index"] == idx and session_obj.type == "session"
-                ],
-            }
-            for idx, session_obj in enumerate(schedule_sessions)
-        ],
+        sessions=_serialize_sessions(schedule_sessions, presentation_order),
         presentation_order=presentation_order,
         pdf_filename="program.pdf",
         pdf_content_type="application/pdf",
