@@ -20,7 +20,7 @@ const App: React.FC = () => {
           <Route path="/" element={<SearchPage />} />
           <Route path="/search" element={<SearchPage />} />
           <Route path="/upload" element={<UploadPage />} />
-          <Route path="/file/:id" element={<FileDetailsPage />} />
+          <Route path="/file/:fileId" element={<FileDetailsPage />} />
           <Route path="/threads" element={<SubmissionThreadsPage />} />
           <Route path="/threads/:threadId" element={<ThreadDetailPage />} />
           <Route path="/status" element={<SubmissionStatusPage />} />
