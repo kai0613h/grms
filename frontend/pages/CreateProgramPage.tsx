@@ -41,6 +41,22 @@ const timeFormatter = new Intl.DateTimeFormat('ja-JP', {
   minute: '2-digit',
 });
 
+const toMinutes = (time: string): number => {
+  const [hours, minutes] = time.split(':').map(Number);
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return 0;
+  return hours * 60 + minutes;
+};
+
+const fromMinutes = (minutes: number): string => {
+  const safeMinutes = ((minutes % (24 * 60)) + (24 * 60)) % (24 * 60);
+  const hours = Math.floor(safeMinutes / 60);
+  const mins = safeMinutes % 60;
+  return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+};
+
+const addMinutesToTime = (time: string, delta: number): string =>
+  fromMinutes(toMinutes(time) + delta);
+
 const initialSessions: ProgramSessionDefinition[] = [
   { type: 'session', startTime: '10:00', endTime: '11:30', chair: '', timekeeper: '' },
   { type: 'break', startTime: '11:30', endTime: '12:15' },
@@ -133,20 +149,61 @@ const CreateProgramPage: React.FC = () => {
   };
 
   const updateSession = (index: number, updates: Partial<ProgramSessionDefinition>) => {
-    setSessions((prev) => prev.map((session, idx) => (idx === index ? { ...session, ...updates } : session)));
+    setSessions((prev) => {
+      const next = prev.map((session, idx) =>
+        idx === index ? { ...session, ...updates } : { ...session },
+      );
+
+      // 開始時刻は前のセッションの終了時刻に自動追従
+      if (index > 0) {
+        next[index].startTime = next[index - 1].endTime;
+      }
+
+      // 以降のセッションは連続になるように自動調整（長さは維持）
+      for (let i = Math.max(1, index + 1); i < next.length; i++) {
+        const duration = Math.max(0, toMinutes(next[i].endTime) - toMinutes(next[i].startTime));
+        const newStart = next[i - 1].endTime;
+        next[i].startTime = newStart;
+        if (duration > 0) {
+          next[i].endTime = addMinutesToTime(newStart, duration);
+        } else if (toMinutes(next[i].endTime) < toMinutes(newStart)) {
+          next[i].endTime = newStart;
+        }
+      }
+
+      return next;
+    });
   };
 
   const addSession = (type: 'session' | 'break') => {
-    setSessions((prev) => [
-      ...prev,
-      type === 'session'
-        ? { type: 'session', startTime: '15:30', endTime: '17:00', chair: '', timekeeper: '' }
-        : { type: 'break', startTime: '17:00', endTime: '17:15' },
-    ]);
+    setSessions((prev) => {
+      const lastEnd = prev[prev.length - 1]?.endTime ?? '10:00';
+      const defaultDuration = type === 'session' ? 90 : 15;
+      const startTime = lastEnd;
+      const endTime = addMinutesToTime(startTime, defaultDuration);
+      const newSession =
+        type === 'session'
+          ? { type: 'session', startTime, endTime, chair: '', timekeeper: '' }
+          : { type: 'break', startTime, endTime };
+      return [...prev, newSession];
+    });
   };
 
   const removeSession = (index: number) => {
-    setSessions((prev) => prev.filter((_, idx) => idx !== index));
+    setSessions((prev) => {
+      const next = prev.filter((_, idx) => idx !== index).map((session) => ({ ...session }));
+      for (let i = 1; i < next.length; i++) {
+        const duration = Math.max(0, toMinutes(next[i].endTime) - toMinutes(next[i].startTime));
+        const newStart = next[i - 1].endTime;
+        next[i].startTime = newStart;
+        if (duration > 0) {
+          next[i].endTime = addMinutesToTime(newStart, duration);
+        } else if (toMinutes(next[i].endTime) < toMinutes(newStart)) {
+          next[i].endTime = newStart;
+        }
+      }
+      return next;
+    });
   };
 
   const submissionSummary = useMemo(() => {
@@ -501,11 +558,12 @@ const CreateProgramPage: React.FC = () => {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                   <Input
-                    label="開始時刻"
+                    label={index === 0 ? "開始時刻" : "開始時刻（前の終了と同じ）"}
                     type="time"
                     value={session.startTime}
                     onChange={(e) => updateSession(index, { startTime: e.target.value })}
                     className="bg-white"
+                    disabled={index > 0}
                   />
                   <Input
                     label="終了時刻"
