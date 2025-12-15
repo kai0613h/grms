@@ -7,7 +7,6 @@ export const NAV_LINKS: NavItemType[] = [
   { label: "Home", path: "/search" }, // Home navigates to search as per common pattern
   { label: "アップロード", path: "/upload" },
   { label: "提出", path: "/threads" },
-  { label: "研究室管理", path: "/laboratories" },
   { label: "提出状況", path: "/status" },
   { label: "プログラム生成", path: "/create-program" },
   { label: "抄録集", path: "/generate-abstracts" },
