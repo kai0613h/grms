@@ -13,7 +13,7 @@ const Navbar: React.FC = () => {
         <div className="flex items-center justify-between h-16">
           {/* Logo and App Title */}
           <div className="flex items-center">
-            <Link to="/" className="flex items-center group">
+            <Link to="/search" className="flex items-center group">
               <div className="p-1.5 bg-indigo-50 rounded-lg group-hover:bg-indigo-100 transition-colors">
                 <LogoIcon className="h-6 w-6 text-indigo-600" />
               </div>

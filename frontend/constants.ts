@@ -13,7 +13,7 @@ export const NAV_LINKS: NavItemType[] = [
   { label: "コンタクトタイム生成", path: "/generate-contact-time" },
 ];
 
-export const SUGGESTED_TAGS: string[] = ["Invoice", "Receipt", "Tax document", "Research", "Thesis", "Presentation"];
+export const SUGGESTED_TAGS: string[] = ["必読", "推奨", "参考", "課題", "発展"];
 
 export const LABORATORY_OPTIONS = [
   { label: '黒木研究室', value: '黒木研究室' },
