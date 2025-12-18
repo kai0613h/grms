@@ -8,7 +8,7 @@ import {
 } from '../types';
 
 const resolveBaseUrl = (): string => {
-  const envValue = import.meta.env.BACKEND_URL?.trim();
+  const envValue = import.meta.env.VITE_BACKEND_URL?.trim();
   const inferFromWindow = () => {
     if (typeof window === 'undefined') {
       return 'http://localhost:8000';
@@ -78,8 +78,8 @@ const toDate = (value?: string | null): Date | undefined => {
 const normaliseTags = (tags: string[] | null | undefined): string[] =>
   Array.isArray(tags)
     ? tags
-        .map((tag) => tag?.trim())
-        .filter((tag): tag is string => Boolean(tag && tag.length))
+      .map((tag) => tag?.trim())
+      .filter((tag): tag is string => Boolean(tag && tag.length))
     : [];
 
 const mapPaperToFileItem = (paper: PaperApiModel): FileItem => {
