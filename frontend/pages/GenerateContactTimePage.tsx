@@ -1,72 +1,217 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ClockIcon, ArrowDownTrayIcon } from '../components/icons';
 import Button from '../components/Button';
 import RadioCard from '../components/RadioCard';
 import Select from '../components/Select';
 
-// Mock data for labs, people and years
-const MOCK_LABS = [
-  { id: 1, name: '小林研究室' },
-  { id: 2, name: '佐藤研究室' },
-  { id: 3, name: '鈴木研究室' },
-  { id: 4, name: '高橋研究室' },
-];
+// --- 型定義 ---
+interface Student {
+  id?: number;
+  student_number: number;
+  student_name: string;
+  theme?: string;
+}
 
-const MOCK_PEOPLE = [
-  { id: 1, student_number: 5401, student_name: '浅島 楓良', laboratory_id: 1, theme: '品川区における最適避難所の分析', years_id: 2 },
-  { id: 2, student_number: 5402, student_name: '高塚 空輝', laboratory_id: 2, theme: 'マイナンバーカードの暗号技術による安全性を体系的に学べるシステムの開発', years_id: 2 },
-  { id: 3, student_number: 5403, student_name: '村上 祥', laboratory_id: 3, theme: '教職員の業務効率化と学生の主attiv行動を支援する進路支援システムの開発', years_id: 2 },
-  { id: 4, student_number: 5404, student_name: '谷 春奈', laboratory_id: 4, theme: '聴覚障害者を対象にした投手の音声認識・文字起こしシステム', years_id: 2 },
-  { id: 5, student_number: 5405, student_name: '大佐 悠惺', laboratory_id: 1, theme: 'Timing side-channel leak を排除したコードの生成技術の調査と開発について', years_id: 2 },
-];
+// APIから実際に返ってくるタスクデータの型
+interface ApiTask {
+  student_name: string;
+  start_time: string | "Unknown";
+  end_time: string | "Unknown";
+  working_time: number | "Unknown";
+  summary: string | "Unknown";
+  excluded_time: number | string;
+}
 
-const MOCK_YEARS = [
-  { id: 1, year: 2023 },
-  { id: 2, year: 2024 },
+// LaTeX生成用に整形した後の型
+interface LatexTask {
+  date: string;
+  start_time: string;
+  end_time: string;
+  duration: number;
+  content: string;
+  excluded: number;
+}
+
+const YEARS = [
+  { id: 2024, label: '2024年度' },
+  { id: 2025, label: '2025年度' },
 ];
 
 const GenerateContactTimePage: React.FC = () => {
-  const [selectedLabId, setSelectedLabId] = useState<number | null>(MOCK_LABS.length > 0 ? MOCK_LABS[0].id : null);
-  const [selectedPersonId, setSelectedPersonId] = useState<number | null>(null);
-  const [selectedYearId, setSelectedYearId] = useState<number | null>(MOCK_YEARS.length > 0 ? MOCK_YEARS[0].id : null);
+  // --- State管理 ---
+  const [labs, setLabs] = useState<string[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
+
+  const [selectedLabName, setSelectedLabName] = useState<string | null>(null);
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [selectedYear, setSelectedYear] = useState<number>(2025);
+
   const [isGenerating, setIsGenerating] = useState(false);
 
-  const peopleInLab = MOCK_PEOPLE.filter(p => p.laboratory_id === selectedLabId && p.years_id === selectedYearId);
+  // 環境変数からAPIのURLを取得（なければlocalhost）
+  const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
 
-  const handleLabSelectionChange = (labId: number) => {
-    setSelectedLabId(labId);
-    setSelectedPersonId(null);
+  // 1. 研究室一覧の取得（初回ロード時）
+  useEffect(() => {
+    const fetchLabs = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/notion/laboratory_name`);
+        if (!res.ok) throw new Error('Failed to fetch labs');
+        const data = await res.json();
+
+        if (data.laboratories && Array.isArray(data.laboratories)) {
+          setLabs(data.laboratories);
+        } else if (Array.isArray(data)) {
+          setLabs(data);
+        } else {
+          setLabs([]);
+        }
+      } catch (error) {
+        console.error("研究室一覧の取得失敗:", error);
+      }
+    };
+    fetchLabs();
+  }, []);
+
+  // 2. 学生一覧の取得（研究室または年度変更時）
+  useEffect(() => {
+    const fetchStudents = async () => {
+      if (!selectedLabName) return;
+      setStudents([]);
+      setSelectedStudent(null);
+
+      try {
+        const params = new URLSearchParams({
+          laboratory_name: selectedLabName,
+          year: selectedYear.toString(),
+        });
+
+        const res = await fetch(`${API_BASE_URL}/notion/laboratory_students?${params}`);
+        if (!res.ok) throw new Error('Failed to fetch students');
+        const data = await res.json();
+
+        let list: Student[] = [];
+        if (data.students && Array.isArray(data.students)) {
+          list = data.students;
+        } else if (Array.isArray(data)) {
+          list = data;
+        }
+        setStudents(list);
+      } catch (error) {
+        console.error("学生一覧の取得失敗:", error);
+      }
+    };
+    fetchStudents();
+  }, [selectedLabName, selectedYear]);
+
+  // --- データの整形用ヘルパー関数 ---
+  const formatIsoDate = (isoString: string | "Unknown"): string => {
+    if (!isoString || isoString === "Unknown") return "";
+    try {
+      const d = new Date(isoString);
+      if (isNaN(d.getTime())) return "";
+      return `${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getDate().toString().padStart(2, '0')}`;
+    } catch { return ""; }
   };
 
-  const handleYearSelectionChange = (yearId: number) => {
-    setSelectedYearId(yearId);
-    setSelectedPersonId(null);
+  const formatIsoTime = (isoString: string | "Unknown"): string => {
+    if (!isoString || isoString === "Unknown") return "";
+    try {
+      const d = new Date(isoString);
+      if (isNaN(d.getTime())) return "";
+      return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+    } catch { return ""; }
   };
 
-  const fetchContactTimes = async () => {
-    const MOCK_CONTACT_TIMES = [
-      { date: '10/2', startTime: '10:00', endTime: '11:00', excluded: '0', duration: '60', content: 'React Nativeの環境構築' },
-      { date: '10/3', startTime: '13:00', endTime: '14:30', excluded: '10', duration: '80', content: 'UIデザインの確認' },
-    ];
-    return new Promise(resolve => setTimeout(() => resolve(MOCK_CONTACT_TIMES), 500));
-  };
+  // --- PDF生成のメイン処理 ---
+  const generatePdf = async () => {
+    if (!selectedLabName || !selectedStudent) return;
+    setIsGenerating(true);
 
-  const generateLatexContent = (contactTimes: any[]) => {
-    const selectedLab = MOCK_LABS.find(lab => lab.id === selectedLabId);
-    const selectedPerson = MOCK_PEOPLE.find(person => person.id === selectedPersonId);
+    try {
+      // 1. Notionからタスクデータを取得
+      const params = new URLSearchParams({
+        laboratory_name: selectedLabName,
+        year: selectedYear.toString(),
+      });
 
-    if (!selectedLab || !selectedPerson) {
-      return '';
+      const res = await fetch(`${API_BASE_URL}/notion/laboratory_tasks?${params}`);
+      if (!res.ok) throw new Error('Failed to fetch tasks');
+
+      const data: Record<string, ApiTask[]> = await res.json();
+
+      const targetName = selectedStudent.student_name;
+      const rawTasks = data[targetName] || [];
+
+      if (rawTasks.length === 0) {
+        alert(`${targetName} さんのコンタクトタイム記録が見つかりませんでした。`);
+        setIsGenerating(false);
+        return;
+      }
+
+      // 2. データをLaTeX用に整形
+      const latexTasks: LatexTask[] = rawTasks
+        .filter(t => t.start_time !== "Unknown" && t.summary !== "Unknown")
+        .map(t => ({
+          date: formatIsoDate(t.start_time),
+          start_time: formatIsoTime(t.start_time),
+          end_time: formatIsoTime(t.end_time),
+          duration: typeof t.working_time === 'number' ? t.working_time : 0,
+          content: t.summary === "Unknown" ? "" : t.summary,
+          excluded: (t.excluded_time === "Unknown" || typeof t.excluded_time !== 'number') ? 0 : t.excluded_time
+        }));
+
+      // 3. LaTeXのソースコードを作成
+      const latexSource = createLatexString(latexTasks, selectedLabName, selectedStudent);
+
+      console.log("PDF生成を開始します...");
+
+      // 4. バックエンドのAPIに送信 (URLを /pdf/compile に修正済み)
+      const pdfRes = await fetch(`${API_BASE_URL}/pdf/compile`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ source: latexSource }),
+      });
+
+      if (!pdfRes.ok) {
+        const errorText = await pdfRes.text();
+        console.error("PDF生成エラー詳細:", errorText);
+        throw new Error('PDFの生成に失敗しました。');
+      }
+
+      // 5. PDFをダウンロード
+      const pdfBlob = await pdfRes.blob();
+      downloadPdfBlob(pdfBlob, `contact_time_${selectedStudent.student_name}.pdf`);
+
+    } catch (error) {
+      console.error("生成エラー:", error);
+      alert("PDFの生成に失敗しました。\nコンソールログのエラー詳細を確認してください。");
+    } finally {
+      setIsGenerating(false);
     }
+  };
 
-    const contactTimeLines = contactTimes.map(entry =>
-      `\\addLine{${entry.date}}{${entry.startTime}}{${entry.endTime}}{${entry.excluded}}{${entry.duration}}{${entry.content}}`
+  const downloadPdfBlob = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const createLatexString = (tasks: LatexTask[], labName: string, student: Student) => {
+    const contactTimeLines = tasks.map(t =>
+      `\\addLine{${t.date}}{${t.start_time}}{${t.end_time}}{${t.excluded}}{${t.duration}}{${t.content}}`
     ).join('\n');
 
-    const totalDuration = contactTimes.reduce((acc, entry) => acc + Number(entry.duration), 0);
+    const totalDuration = tasks.reduce((acc, t) => acc + t.duration, 0);
 
-    const latexString = `
+    return `
 \\documentclass[a4j,12pt]{jarticle}
 %!TEX root = output.utf8.tex
 \\usepackage[a4paper,totalheight=265mm,textwidth=175mm]{geometry}
@@ -125,7 +270,7 @@ const GenerateContactTimePage: React.FC = () => {
 }
 \\newcommand{\\courseLaboName}[3]{
 \\put(0,228){\\makebox(175,6){%
-#1 \\hfil ${selectedLab.name} \\hfil #3
+#1 \\hfil ${labName} \\hfil #3
 }}%
 }
 \\newcommand{\\lastFrame}{
@@ -148,98 +293,77 @@ const GenerateContactTimePage: React.FC = () => {
  \\put(66,24){\\makebox(24,6){#1}}
 }
 
-\\newcommand{\\writeTime}[3]{%
-   \\put(45,0){\\makebox(45,6){#3}}%
-   \\put(45,6){\\makebox(45,6){#2}}%
-   \\put(45,12){\\makebox(45,6){#1}}%
-}
-
 \\begin{document}
 \\startFrame
-\\nendoNumber{2023}{卒業}{1}
-\\courseLaboName{情報通信工学コース}{${selectedLab.name}}{${selectedPerson.student_name}}
+\\nendoNumber{${selectedYear}}{卒業}{1}
+\\courseLaboName{情報通信工学コース}{${labName}}{${student.student_name}}
 ${contactTimeLines}
 \\total{${totalDuration}}
 \\lastFrame
 \\end{document}
-`;
-    return latexString;
-  };
-
-  const handleGenerate = async () => {
-    if (!selectedLabId || !selectedPersonId) {
-      alert("研究室と人を選択してください。");
-      return;
-    }
-
-    setIsGenerating(true);
-    const contactTimes = await fetchContactTimes() as any[];
-    const latexContent = generateLatexContent(contactTimes);
-    const blob = new Blob([latexContent], { type: 'application/x-latex' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'contact-time.tex';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    setIsGenerating(false);
+    `;
   };
 
   return (
     <div className="max-w-2xl mx-auto">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-slate-900 tracking-tight">コンタクトタイム生成</h1>
-        <p className="mt-2 text-slate-500">コンタクトタイム記録用紙（LaTeX）を生成します</p>
+        <p className="mt-2 text-slate-500">Notionデータからコンタクトタイム記録用紙（PDF）を生成します</p>
       </div>
 
       <div className="bg-white p-6 sm:p-8 rounded-2xl shadow-sm border border-slate-200 space-y-8">
+        {/* 年度選択 */}
         <div>
           <Select
             label="年度を選択"
-            options={MOCK_YEARS.map(y => ({ value: y.id, label: `${y.year}年度` }))}
-            value={selectedYearId || ''}
-            onChange={(e) => handleYearSelectionChange(Number(e.target.value))}
+            options={YEARS.map(y => ({ value: y.id, label: y.label }))}
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(Number(e.target.value))}
           />
         </div>
 
+        {/* 研究室選択 */}
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-3">研究室を選択</label>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {MOCK_LABS.map((lab) => (
-              <RadioCard
-                key={lab.id}
-                id={`lab-${lab.id}`}
-                name="selectedLab"
-                label={lab.name}
-                value={lab.id}
-                checked={selectedLabId === lab.id}
-                onChange={handleLabSelectionChange}
-              />
-            ))}
-          </div>
+          {labs.length === 0 ? (
+            <p className="text-sm text-gray-500">研究室データを読み込み中...</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {labs.map((labName, index) => (
+                <RadioCard
+                  key={index}
+                  id={`lab-${index}`}
+                  name="selectedLab"
+                  label={labName}
+                  value={labName}
+                  checked={selectedLabName === labName}
+                  onChange={() => { setSelectedLabName(labName); setSelectedStudent(null); }}
+                />
+              ))}
+            </div>
+          )}
         </div>
 
-        {selectedLabId && selectedYearId && (
+        {/* 学生選択 */}
+        {selectedLabName && (
           <div className="animate-fade-in">
             <label className="block text-sm font-medium text-slate-700 mb-3">人を選択</label>
             <div className="space-y-3">
-              {peopleInLab.length === 0 ? (
+              {students.length === 0 ? (
                 <p className="text-sm text-slate-500 p-4 bg-slate-50 rounded-lg border border-slate-100">
                   該当する学生がいません
                 </p>
               ) : (
-                peopleInLab.map((person) => (
+                students.map((student, index) => (
                   <RadioCard
-                    key={person.id}
-                    id={`person-${person.id}`}
-                    name="selectedPerson"
-                    label={person.student_name}
-                    description={`${person.student_number} / ${person.theme}`}
-                    value={person.id}
-                    checked={selectedPersonId === person.id}
-                    onChange={setSelectedPersonId}
+                    key={index}
+                    id={`student-${index}`}
+                    name="selectedStudent"
+                    label={student.student_name}
+                    description={`${student.student_number} / ${student.theme || 'テーマ未設定'}`}
+                    value={student.student_name}
+                    checked={selectedStudent?.student_name === student.student_name}
+                    onChange={() => setSelectedStudent(student)}
                   />
                 ))
               )}
@@ -247,12 +371,13 @@ ${contactTimeLines}
           </div>
         )}
 
+        {/* 生成ボタン */}
         <div className="pt-4 border-t border-slate-100 flex justify-end">
           <Button
-            onClick={handleGenerate}
+            onClick={generatePdf}
             variant="primary"
             size="lg"
-            disabled={!selectedLabId || !selectedPersonId || isGenerating}
+            disabled={!selectedLabName || !selectedStudent || isGenerating}
             className="w-full sm:w-auto shadow-lg shadow-indigo-500/20"
           >
             {isGenerating ? (
@@ -263,7 +388,7 @@ ${contactTimeLines}
             ) : (
               <>
                 <ArrowDownTrayIcon className="h-5 w-5 mr-2" />
-                コンタクトタイム生成
+                PDF生成
               </>
             )}
           </Button>

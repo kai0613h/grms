@@ -7,10 +7,13 @@ from notion_api import notion_router
 from papers import router as papers_router
 from pdf_generator import pdf_router
 from conference_api import conference_router
+from compile_api import router as compile_router
 
 # --- FastAPI アプリ ---
 app = FastAPI()
 app.include_router(pdf_router, prefix="/pdf")
+app.include_router(compile_router, prefix="/pdf")
+
 app.include_router(notion_router, prefix="/notion")
 app.include_router(papers_router)
 app.include_router(conference_router)

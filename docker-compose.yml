@@ -13,7 +13,8 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      # 【重要】ここを修正しました（変数を使うように変更）
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER}" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -23,19 +24,20 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     volumes:
-      - ./backend/app:/app:delegated  # macOS では :delegated を付けるとパフォーマンスが改善する場合がある
+      - ./backend/app:/app:delegated
       - ./backend/requirements.txt:/requirements.txt:delegated
     env_file:
       - .env
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - NOTION_TOKEN=${NOTION_TOKEN}
+      - FRONTEND_URL=${FRONTEND_URL}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
     ports:
       - "8000:8000"
     depends_on:
       db:
         condition: service_healthy
-    # mac の特殊対策: ホストのサービスに接続する場合は host.docker.internal を使う
 
   frontend:
     build:
@@ -45,12 +47,12 @@ services:
       - ./frontend:/app:delegated
       - /app/node_modules
     ports:
-      - "3000:5173" # Vite デフォルトポートは 5173 -> ホスト 3000 にマッピング
+      - "3000:5173"
     env_file:
       - .env
     environment:
       - BACKEND_URL=${BACKEND_URL}
-      - GEMINI_API_KEY=${GEMINI_API_KEY} # macOS でホストのバックエンドへアクセスする例
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
     depends_on:
       - backend
 
