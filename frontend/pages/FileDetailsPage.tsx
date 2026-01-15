@@ -8,14 +8,15 @@ import { DocumentTextIcon, ArrowLeftIcon, ArrowDownTrayIcon } from '../component
 import { downloadPaper, fetchPaperById, getDownloadUrl } from '../utils/api';
 
 const FileDetailsPage: React.FC = () => {
-  const { fileId } = useParams<{ fileId: string }>();
+  const { fileId, id } = useParams<{ fileId?: string; id?: string }>();
+  const resolvedFileId = fileId ?? id;
   const [file, setFile] = useState<FileItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
 
   useEffect(() => {
-    if (!fileId) {
+    if (!resolvedFileId) {
       setErrorMessage('ファイルIDが指定されていません。');
       setLoading(false);
       return;
@@ -25,7 +26,7 @@ const FileDetailsPage: React.FC = () => {
     setLoading(true);
     setErrorMessage(null);
 
-    fetchPaperById(fileId)
+    fetchPaperById(resolvedFileId)
       .then((fetched) => {
         if (!isMounted) return;
         const enriched = fetched.downloadUrl
@@ -50,10 +51,10 @@ const FileDetailsPage: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, [fileId]);
+  }, [resolvedFileId]);
 
   const handleDownload = async () => {
-    if (!fileId || !file) return;
+    if (!resolvedFileId || !file) return;
     setIsDownloading(true);
     setErrorMessage(null);
 
@@ -70,7 +71,7 @@ const FileDetailsPage: React.FC = () => {
         return;
       }
 
-      const { blob, filename } = await downloadPaper(fileId);
+      const { blob, filename } = await downloadPaper(resolvedFileId);
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;

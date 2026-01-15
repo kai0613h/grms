@@ -3,6 +3,7 @@ import { ClockIcon, ArrowDownTrayIcon } from '../components/icons';
 import Button from '../components/Button';
 import RadioCard from '../components/RadioCard';
 import Select from '../components/Select';
+import { API_BASE_URL } from '../utils/api';
 
 // --- 型定義 ---
 interface Student {
@@ -47,9 +48,6 @@ const GenerateContactTimePage: React.FC = () => {
   const [selectedYear, setSelectedYear] = useState<number>(2025);
 
   const [isGenerating, setIsGenerating] = useState(false);
-
-  // 環境変数からAPIのURLを取得（なければlocalhost）
-  const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
 
   // 1. 研究室一覧の取得（初回ロード時）
   useEffect(() => {

@@ -19,14 +19,16 @@ app.include_router(papers_router)
 app.include_router(conference_router)
 
 # --- CORS設定 ---
-# 環境変数 FRONTEND_URL を直接使用
+# 環境変数 FRONTEND_URL をカンマ区切りで複数指定可能にする
 FRONTEND_URL = os.getenv("FRONTEND_URL")
 if not FRONTEND_URL:
     raise RuntimeError("FRONTEND_URL environment variable is not set.")
 
+allowed_origins = [origin.strip() for origin in FRONTEND_URL.split(",") if origin.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=FRONTEND_URL,
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -8,7 +8,8 @@ import {
 } from '../types';
 
 const resolveBaseUrl = (): string => {
-  const envValue = import.meta.env.BACKEND_URL?.trim();
+  const envValue =
+    (import.meta.env.VITE_BACKEND_URL ?? import.meta.env.BACKEND_URL)?.trim();
   const inferFromWindow = () => {
     if (typeof window === 'undefined') {
       return 'http://localhost:8000';
@@ -23,6 +24,13 @@ const resolveBaseUrl = (): string => {
 
   if (!envValue) {
     return inferFromWindow();
+  }
+
+  if (envValue.startsWith('/')) {
+    if (typeof window === 'undefined') {
+      return envValue;
+    }
+    return `${window.location.origin}${envValue}`;
   }
 
   if (envValue.includes('host.docker.internal')) {
@@ -269,7 +277,8 @@ const decodeContentDisposition = (value: string | null): string | undefined => {
 };
 
 export const fetchPapers = async (filters: PaperFilters = {}): Promise<FileItem[]> => {
-  const response = await fetch(`${API_BASE_URL}/papers${buildQueryString(filters)}`);
+  const query = buildQueryString(filters);
+  const response = await fetch(`${API_BASE_URL}/papers/${query}`);
   if (!response.ok) {
     throw new Error(await extractErrorMessage(response));
   }
@@ -305,7 +314,7 @@ export const uploadPaper = async (params: UploadPaperParams): Promise<FileItem> 
     formData.append('description', params.description.trim());
   }
 
-  const response = await fetch(`${API_BASE_URL}/papers`, {
+  const response = await fetch(`${API_BASE_URL}/papers/`, {
     method: 'POST',
     body: formData,
     signal: params.signal,
