@@ -138,13 +138,32 @@ def insert_db(laboratory_name, student_data, student_task_data, year):
 # =====================================================
 def query_database(database_id, filter_json=None):
     url = f"https://api.notion.com/v1/databases/{database_id}/query"
-    payload = {}
-    if filter_json:
-        payload["filter"] = filter_json
-    print_curl_debug("POST", url, headers=HEADERS, json_payload=payload)
-    res = requests.post(url, headers=HEADERS, json=payload)
-    res.raise_for_status()
-    return res.json()["results"]
+    
+    all_results = []
+    has_more = True
+    next_cursor = None
+
+    while has_more:
+        payload = {}
+        if filter_json:
+            payload["filter"] = filter_json
+        if next_cursor:
+            payload["start_cursor"] = next_cursor
+            
+        print_curl_debug("POST", url, headers=HEADERS, json_payload=payload)
+        res = requests.post(url, headers=HEADERS, json=payload)
+        res.raise_for_status()
+        data = res.json()
+        
+        results = data.get("results", [])
+        all_results.extend(results)
+        
+        has_more = data.get("has_more", False)
+        next_cursor = data.get("next_cursor")
+        
+        print(f"    📄 Query fetched {len(results)} items. has_more={has_more}")
+
+    return all_results
 
 
 def get_block_children(block_id):
@@ -210,8 +229,10 @@ def get_thesis_pages(year_database_id: str) -> List[Dict[str, Any]]:
     thesis_pages = []
     for p in pages:
         subpage_id = p["id"]
-        title = p["properties"]["名前"]["title"][0]["text"]["content"] if "名前" in p["properties"] else "No Title"
+        title_list = p["properties"]["名前"]["title"] if "名前" in p["properties"] else []
+        title = title_list[0]["text"]["content"] if title_list else "No Title"
         year = p["properties"]["年度"]["number"] if "年度" in p["properties"] else None
+        
         thesis_pages.append({
             "title": title,
             "year": year,
@@ -269,12 +290,15 @@ async def update_laboratory_notion_data(
     for lab_page in laboratory_database:
         try:
             # 研究室名を取得
-            laboratory_name = lab_page["properties"]["名前"]["title"][0]["text"]["content"]
-            print(f"研究室名: {laboratory_name}")
+            title_prop = lab_page["properties"]["名前"]["title"]
+            laboratory_name = title_prop[0]["text"]["content"] if title_prop else "Unknown"
             lab_page_id = lab_page["id"]
+            
+            if laboratory_name == "Unknown":
+                 print(f"⚠️ 研究室名が取得できませんでした (id={lab_page_id})")
+                 continue
 
-            if not laboratory_name:
-                raise ValueError(f"研究室名が空です (page_id={lab_page_id})")
+            print(f"研究室名: {laboratory_name}")
 
             # 年度データベース(child_database)を取得
             for year_block in get_year_database_blocks(lab_page_id):
@@ -392,6 +416,29 @@ async def get_laboratory_name(
         raise HTTPException(status_code=404, detail="該当する研究室データが存在しません")
 
     return {"count": len(laboratories), "laboratories": laboratories}
+
+
+@notion_router.get("/years")
+async def get_available_years(
+    db: AsyncSession = Depends(get_db_session),
+):
+    """
+    DBに保存されているデータの年度一覧を重複なしで取得する
+    """
+    query = select(distinct(Notion.year)).order_by(Notion.year.desc())
+    result = await db.execute(query)
+    years = result.scalars().all()
+    
+    # Noneを除外してリスト化
+    valid_years = [y for y in years if y is not None]
+
+    if not valid_years:
+        # データがない場合はデフォルトで今年と来年を返すなどのフォールバックがあってもいいが
+        # ここでは空リストを返してフロントエンドで対処するか、404にするか。
+        # 一旦リストを返す。
+        return {"years": []}
+
+    return {"years": valid_years}
 
 
 @notion_router.get("/laboratory_students")

@@ -11,9 +11,10 @@ interface Student {
   student_number: number;
   student_name: string;
   theme?: string;
+  total_contact_time?: number; // Added field
 }
 
-// APIから実際に返ってくるタスクデータの型
+// APIから実際に返ってくるタスクデータを型
 interface ApiTask {
   student_name: string;
   start_time: string | "Unknown";
@@ -33,27 +34,72 @@ interface LatexTask {
   excluded: number;
 }
 
-const YEARS = [
-  { id: 2024, label: '2024年度' },
-  { id: 2025, label: '2025年度' },
-];
-
 const GenerateContactTimePage: React.FC = () => {
   // --- State管理 ---
   const [labs, setLabs] = useState<string[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
+  // 年度のリストをStateで管理
+  const [years, setYears] = useState<{ id: number; label: string }[]>([]);
 
   const [selectedLabName, setSelectedLabName] = useState<string | null>(null);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  const [selectedYear, setSelectedYear] = useState<number>(2025);
+
+  // 初期値は一旦nullにするか、現在の年度にする
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
 
   const [isGenerating, setIsGenerating] = useState(false);
 
+  // 0. 年度一覧の取得 (New)
+  useEffect(() => {
+    const fetchYears = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/notion/years`);
+        if (!res.ok) throw new Error('Failed to fetch years');
+        const data = await res.json();
+
+        if (data.years && Array.isArray(data.years) && data.years.length > 0) {
+          const formattedYears = data.years.map((y: number) => ({
+            id: y,
+            label: `${y}年度`
+          }));
+          setYears(formattedYears);
+
+          // もし現在選択中の年度がリストになければ、最新の年度を選択
+          if (!data.years.includes(selectedYear)) {
+            setSelectedYear(data.years[0]);
+          }
+        } else {
+          // データがない場合のフォールバック（今年は少なくとも入れる）
+          const currentYear = new Date().getFullYear();
+          setYears([
+            { id: currentYear, label: `${currentYear}年度` },
+            { id: currentYear + 1, label: `${currentYear + 1}年度` }
+          ]);
+        }
+      } catch (error) {
+        console.error("年度一覧の取得失敗:", error);
+        // エラー時はデフォルト値をセット
+        const currentYear = new Date().getFullYear();
+        setYears([
+          { id: currentYear, label: `${currentYear}年度` },
+          { id: currentYear + 1, label: `${currentYear + 1}年度` }
+        ]);
+      }
+    };
+    fetchYears();
+  }, []); // 初回のみ実行
+
   // 1. 研究室一覧の取得（初回ロード時）
+  // ※研究室一覧は年度に依存する仕様なら依存配列にselectedYearが必要だが、
+  // 現状のAPI(/notion/laboratory_name)は year引数を受け取れるので
+  // 年度を変えたら研究室も再取得すべきかもしれない。
+  // ここでは要望通り「動的に増やす」ことを主眼に置き、既存の動きを大きく壊さないようにする。
   useEffect(() => {
     const fetchLabs = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/notion/laboratory_name`);
+        // APIは year クエリを受け取れるので、選択年度の研究室だけ出す方が親切
+        const res = await fetch(`${API_BASE_URL}/notion/laboratory_name?year=${selectedYear}`);
+
         if (!res.ok) throw new Error('Failed to fetch labs');
         const data = await res.json();
 
@@ -69,7 +115,7 @@ const GenerateContactTimePage: React.FC = () => {
       }
     };
     fetchLabs();
-  }, []);
+  }, [selectedYear]);
 
   // 2. 学生一覧の取得（研究室または年度変更時）
   useEffect(() => {
@@ -108,7 +154,7 @@ const GenerateContactTimePage: React.FC = () => {
     try {
       const d = new Date(isoString);
       if (isNaN(d.getTime())) return "";
-      return `${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getDate().toString().padStart(2, '0')}`;
+      return `${(d.getMonth() + 1)}月 ${d.getDate()}日`;
     } catch { return ""; }
   };
 
@@ -120,6 +166,13 @@ const GenerateContactTimePage: React.FC = () => {
       return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
     } catch { return ""; }
   };
+
+  const formatDurationDetail = (minutes: number): string => {
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return `${minutes}分 (${h}時間 ${m}分)`;
+  };
+
 
   // --- PDF生成のメイン処理 ---
   const generatePdf = async () => {
@@ -164,12 +217,10 @@ const GenerateContactTimePage: React.FC = () => {
 
       console.log("PDF生成を開始します...");
 
-      // 4. バックエンドのAPIに送信 (URLを /pdf/compile に修正済み)
+      // 4. バックエンドのAPIに送信
       const pdfRes = await fetch(`${API_BASE_URL}/pdf/compile`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ source: latexSource }),
       });
 
@@ -185,7 +236,7 @@ const GenerateContactTimePage: React.FC = () => {
 
     } catch (error) {
       console.error("生成エラー:", error);
-      alert("PDFの生成に失敗しました。\nコンソールログのエラー詳細を確認してください。");
+      alert("PDFの生成に失敗しました。");
     } finally {
       setIsGenerating(false);
     }
@@ -203,15 +254,26 @@ const GenerateContactTimePage: React.FC = () => {
   };
 
   const createLatexString = (tasks: LatexTask[], labName: string, student: Student) => {
+    // 時間計算
+    const currentTotal = tasks.reduce((acc, t) => acc + t.duration, 0);
+    // grandTotal (Notion上の総計) があれば使い、なければ今回の合計を総計とする
+    const grandTotal = (student.total_contact_time && typeof student.total_contact_time === 'number')
+      ? student.total_contact_time
+      : currentTotal;
+
+    // 前回までの合計 = 総計 - 今回
+    const previousTotal = grandTotal - currentTotal;
+
+    const currentStr = formatDurationDetail(currentTotal);
+    const previousStr = formatDurationDetail(Math.max(0, previousTotal));
+    const grandTotalStr = formatDurationDetail(grandTotal);
+
     const contactTimeLines = tasks.map(t =>
       `\\addLine{${t.date}}{${t.start_time}}{${t.end_time}}{${t.excluded}}{${t.duration}}{${t.content}}`
     ).join('\n');
 
-    const totalDuration = tasks.reduce((acc, t) => acc + t.duration, 0);
-
     return `
-\\documentclass[a4j,12pt]{jarticle}
-%!TEX root = output.utf8.tex
+\\documentclass[a4j,11pt]{jarticle}
 \\usepackage[a4paper,totalheight=265mm,textwidth=175mm]{geometry}
 \\pagestyle{empty}
 \\setlength{\\unitlength}{1mm}
@@ -220,23 +282,30 @@ const GenerateContactTimePage: React.FC = () => {
 \\newcommand{\\yline}{\\line(0,1){\\ysize}}%
 \\newcount\\x
 \\newcount\\y
+
+% --- フレーム描画コマンド ---
 \\newcommand{\\startFrame}{%
  \\begin{picture}(175,260)
-  \\put(0,0){\\makebox(175,260){}}
+  \\put(0,0){\\makebox(175,260){}} 
+
+  % --- メインの表 (上部) ---
   \\put(0,30){
    \\thicklines
    \\put(0,0){\\framebox(175,192){}}
-   \\put(0,186){\\xline}
-   \\put(66,0){\\line(0,-1){6}}%
-   \\put(90,0){\\line(0,-1){6}}%
-   \\put(66,-6){\\line(1,0){24}}%
+   \\put(0,186){\\xline} 
+   
+   % 縦線
    \\thinlines
+   \\put(16,0){\\yline}% 日付
+   \\put(33,0){\\yline}% 開始
+   \\put(50,0){\\yline}% 終了
+   \\put(66,0){\\yline}% 除外
+   \\put(90,0){\\yline}% 実施時間
+   
+   % 横罫線 (30行)
    \\multiput(0,6)(0,6){30}{\\xline}
-   \\put(16,0){\\yline}%
-   \\put(33,0){\\yline}%
-   \\put(50,0){\\yline}%
-   \\put(66,0){\\yline}%
-   \\put(90,0){\\yline}%
+
+   % ヘッダー文字
    \\put(0,186){
     \\put(0,0){\\makebox(16,6){日付}}%
     \\put(16,0){\\makebox(17,6){開始時刻}}%
@@ -245,32 +314,49 @@ const GenerateContactTimePage: React.FC = () => {
     \\put(66,0){\\makebox(24,6){実施時間(分)}}%
     \\put(90,0){\\makebox(85,6){内容}}%
    }
+
+   % 合計欄 (表の直下、実施時間の列)
+   \\put(66,-6){\\line(0,1){6}} % 縦線
+   \\put(90,-6){\\line(0,1){6}} % 縦線
+   \\put(66,-6){\\line(1,0){24}} % 下線
+   \\put(66,-6){\\makebox(24,6){${currentTotal}}} 
   }
+
+  % --- フッター集計表 (左下) ---
   \\put(0,0){
    \\thicklines
-   \\put(0,0){\\framebox(90,18){}}
-   \\thinlines
-   \\multiput(0,6)(0,6){2}{\\line(1,0){90}}%
-   \\put(45,0){\\line(0,1){18}}%
-   \\put(0,0){\\makebox(45,6){総コンタクトタイム}}%
-   \\put(0,6){\\makebox(45,6){これまでのコンタクトタイム}}%
-   \\put(0,12){\\makebox(45,6){今回のコンタクトタイム}}%
-  }
-  \\put(155,0){\\thicklines\\framebox(20,20){}}
-  \\put(140,0){教員の印}%
+   % 3行目 (今回の)
+   \\put(0,12){\\framebox(60,6){今回のコンタクトタイム}}
+   \\put(60,12){\\framebox(60,6){${currentStr}}}
 
-  \\global\\y=210
+   % 2行目 (これまでの)
+   \\put(0,6){\\framebox(60,6){これまでのコンタクトタイム}}
+   \\put(60,6){\\framebox(60,6){${previousStr}}}
+
+   % 1行目 (総)
+   \\put(0,0){\\framebox(60,6){総コンタクトタイム}}
+   \\put(60,0){\\framebox(60,6){${grandTotalStr}}}
+  }
+
+  % --- 教員印 (右下) ---
+  \\put(155,0){\\thicklines\\framebox(20,20){}}
+  \\put(134,0){\\makebox(20,6)[r]{教員の印}} 
+
+  \\global\\y=210 
 }
 
 \\newcommand{\\nendoNumber}[3]{%
  \\put(0,236){\\makebox(175,8){\\Large\\bf #1年度　#2研究　コンタクトタイム記録用紙}}%
  \\put(0,244){\\makebox(175,6)[r]{No. #3}}%
 }
+
+% 学生番号と名前をスペース区切りで表示
 \\newcommand{\\courseLaboName}[3]{
-\\put(0,228){\\makebox(175,6){%
-#1 \\hfil ${labName} \\hfil #3
-}}%
+ \\put(0,228){\\makebox(175,6){%
+  #1 \\hfil ${labName} \\hfil #3
+ }}%
 }
+
 \\newcommand{\\lastFrame}{
  \\end{picture}
 }
@@ -282,31 +368,59 @@ const GenerateContactTimePage: React.FC = () => {
   \\put(33,0){\\makebox(17,6){#3}}%
   \\put(50,0){\\makebox(16,6){#4}}%
   \\put(66,0){\\makebox(24,6){#5}}%
-  \\put(91,0){\\makebox(83,6)[l]{#6}}%
+  \\put(91,0){\\makebox(83,6)[l]{\\small #6}}%
  }
  \\global\\advance\\y by -6
-}
-
-\\newcommand{\\total}[1]{%
- \\put(66,24){\\makebox(24,6){#1}}
 }
 
 \\begin{document}
 \\startFrame
 \\nendoNumber{${selectedYear}}{卒業}{1}
-\\courseLaboName{情報通信工学コース}{${labName}}{${student.student_name}}
+\\courseLaboName{情報システム工学コース}{${labName}}{${student.student_number}~~${student.student_name}}
 ${contactTimeLines}
-\\total{${totalDuration}}
 \\lastFrame
 \\end{document}
     `;
   };
 
+  // --- データ更新用ハンドラ ---
+  const handleRefresh = async () => {
+    if (!confirm("Notionから最新のデータを取得してデータベースを更新しますか？\n（少し時間がかかります）")) return;
+
+    setIsGenerating(true);
+    try {
+      const rootDbId = "20ab77e257b580d0a8d4fffaeb4f02f9";
+      const res = await fetch(`${API_BASE_URL}/notion/laboratories/reflesh?root_database_id=${rootDbId}`, {
+        method: 'POST'
+      });
+
+      if (!res.ok) throw new Error('Refresh failed');
+
+      alert("データの更新が完了しました！");
+      window.location.reload();
+
+    } catch (error) {
+      console.error("更新エラー:", error);
+      alert("データの更新に失敗しました。");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   return (
     <div className="max-w-2xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-900 tracking-tight">コンタクトタイム生成</h1>
-        <p className="mt-2 text-slate-500">Notionデータからコンタクトタイム記録用紙（PDF）を生成します</p>
+      <div className="mb-8 flex justify-between items-start">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-900 tracking-tight">コンタクトタイム生成</h1>
+          <p className="mt-2 text-slate-500">Notionデータからコンタクトタイム記録用紙（PDF）を生成します</p>
+        </div>
+        <button
+          onClick={handleRefresh}
+          disabled={isGenerating}
+          className="ml-4 px-4 py-2 bg-indigo-600 text-white rounded-lg shadow hover:bg-indigo-700 disabled:opacity-50 text-sm font-bold flex-shrink-0 transition-colors"
+        >
+          {isGenerating ? "更新中..." : "Notionデータ更新"}
+        </button>
       </div>
 
       <div className="bg-white p-6 sm:p-8 rounded-2xl shadow-sm border border-slate-200 space-y-8">
@@ -314,7 +428,7 @@ ${contactTimeLines}
         <div>
           <Select
             label="年度を選択"
-            options={YEARS.map(y => ({ value: y.id, label: y.label }))}
+            options={years.map(y => ({ value: y.id, label: y.label }))}
             value={selectedYear}
             onChange={(e) => setSelectedYear(Number(e.target.value))}
           />
